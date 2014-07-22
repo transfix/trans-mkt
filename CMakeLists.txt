@@ -12,8 +12,8 @@ set(EXECUTABLE_OUTPUT_PATH "${CMAKE_BINARY_DIR}/bin")
 mark_as_advanced(LIBRARY_OUTPUT_PATH EXECUTABLE_OUTPUT_PATH)
 
 # The version number.
-set(transmkt_VERSION_MAJOR 1)
-set(transmkt_VERSION_MINOR 0)
+set(transmkt_VERSION_MAJOR 0)
+set(transmkt_VERSION_MINOR 1)
 
 # The full version string
 set(transmkt_VERSION ${transmkt_VERSION_MAJOR}.${transmkt_VERSION_MINOR})

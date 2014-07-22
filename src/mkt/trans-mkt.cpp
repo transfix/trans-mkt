@@ -8,6 +8,14 @@
 #include <iostream>
 #include <cstdlib>
 
+void do_help(const std::string& prog)
+{
+  mkt::argument_vector help_args;
+  help_args.push_back(prog);
+  help_args.push_back("help");
+  mkt::exec(help_args);
+}
+
 int main(int argc, char **argv)
 {
   using namespace std;
@@ -19,21 +27,21 @@ int main(int argc, char **argv)
 
   try
     {
-      if(args.size()<2) throw command_line_error("Missing command string");
-      args.erase(args.begin()); //erase the program string
-      mkt::exec(args);
+      //print help if not enough args
+      if(args.size()<2)
+        {
+          do_help(argv[0]);
+        }
+      else
+        {
+          mkt::exec(args);
+        }
     }
   catch(command_line_error& e)
     {
       if(!e.what_str().empty()) cout << "Error: " << e.what_str() << endl;
       cout << "Usage: " << argv[0] << " <command> <command args>" << endl;
-
-	  //issue help command by default
-	  argument_vector help_args;
-	  help_args.push_back(argv[0]);
-	  help_args.push_back("help");
-      mkt::exec(help_args);
-
+      do_help(args[0]);
       return EXIT_FAILURE;
     }
   catch(std::exception& e)

@@ -12,7 +12,8 @@ namespace
   void help(const mkt::argument_vector& args)
   {
     using namespace std;
-	using namespace mkt;
+    using namespace mkt;
+    cout << "Version: " << MKT_VERSION << endl;
     cout << "Usage: " << args[0] << " <command> <command args>" << endl << endl;
     BOOST_FOREACH(command_map::value_type& cmd, commands)
       {
@@ -24,9 +25,9 @@ namespace
   void hello(const mkt::argument_vector& args)
   {
     using namespace std;
-	using namespace mkt;
-    if(args.empty()) cout << "Hello, world!" << endl;
-    else if(args.size()==1) cout << "Hello, " << args[0] << endl;
+    using namespace mkt;
+    if(args.size()<3) cout << "Hello, world!" << endl;
+    else if(args.size()==3) cout << "Hello, " << args[2] << endl;
     else throw command_line_error("Too many arguments");
   }
 
@@ -36,7 +37,7 @@ namespace
     init_commands()
     {
       using namespace std;
-	  using namespace mkt;
+      using namespace mkt;
       using boost::str;
       using boost::format;
       using boost::make_tuple;
@@ -55,12 +56,11 @@ namespace mkt
 {
   void exec(const argument_vector& args)
   {
-    if(args.empty()) throw command_line_error("Missing command string");
-    std::string cmd = args[0];
-	mkt::argument_vector localargs = args;
-    localargs.erase(localargs.begin()); //erase the command string
+    using namespace boost;
+    if(args.size()<2) throw command_line_error("Missing command string");
+    std::string cmd = args[1];
     if(commands.find(cmd)==commands.end())
-      throw command_line_error("Invalid command.");
+      throw command_line_error(str(format("Invalid command: %1%") % cmd));
     commands[cmd].get<0>()(args);
   }
 }
