@@ -1,9 +1,9 @@
 #include <mkt/config.h>
-#include <mkt/commands.h>
+#include <mkt/app.h>
 #include <mkt/exceptions.h>
 
-#include <boost/format.hpp>
 #include <boost/foreach.hpp>
+#include <boost/thread.hpp>
 
 namespace
 {
@@ -13,7 +13,7 @@ namespace
   {
     using namespace std;
     using namespace mkt;
-    cout << "Version: " << MKT_VERSION << endl;
+    cout << "Version: " << version() << endl;
     cout << "Usage: " << args[0] << " <command> <command args>" << endl << endl;
     BOOST_FOREACH(command_map::value_type& cmd, commands)
       {
@@ -54,6 +54,26 @@ namespace
 
 namespace mkt
 {
+  argument_vector  _av;
+  boost::mutex     _av_lock;
+
+  std::string version()
+  {
+    return std::string(MKT_VERSION);
+  }
+  
+  argument_vector argv()
+  {
+    boost::mutex::scoped_lock lock(_av_lock);
+    return _av;
+  }
+
+  void argv(const argument_vector& av)
+  {
+    boost::mutex::scoped_lock lock(_av_lock);
+    _av = av;
+  }
+
   void exec(const argument_vector& args)
   {
     using namespace boost;
