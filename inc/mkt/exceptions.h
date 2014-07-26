@@ -16,7 +16,7 @@ namespace mkt
     }
   };
 
-#define DEF_EXCEPTION(name) \
+#define MKT_DEF_EXCEPTION(name) \
   class name : public exception \
   { \
   public: \
@@ -29,5 +29,5 @@ namespace mkt
     std::string _msg; \
   }
 
-  DEF_EXCEPTION(command_line_error);
+  MKT_DEF_EXCEPTION(command_line_error);
 }
