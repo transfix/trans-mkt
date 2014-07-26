@@ -6,11 +6,11 @@ endif(WIN32)
 
 set(INCLUDE_FILES
   ../../inc/mkt/exceptions.h
-  ../../inc/mkt/commands.h
+  ../../inc/mkt/app.h
 )
 
 set(SOURCE_FILES
-  commands.cpp
+  app.cpp
 )
 
 source_group("Source Files" FILES ${SOURCE_FILES})

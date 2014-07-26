@@ -7,14 +7,22 @@
 
 namespace
 {
-  mkt::command_map commands;
+  mkt::command_map     commands;
+  boost::mutex         _commands_lock;
+
+  mkt::argument_vector _av;
+  boost::mutex         _av_lock;
 
   void help(const mkt::argument_vector& args)
   {
     using namespace std;
     using namespace mkt;
+
+    argument_vector prog_args = argv();
+    std::string prog_name = !prog_args.empty() ? prog_args[0] : "mkt";
+
     cout << "Version: " << version() << endl;
-    cout << "Usage: " << args[0] << " <command> <command args>" << endl << endl;
+    cout << "Usage: " << prog_name << " <command> <command args>" << endl << endl;
     BOOST_FOREACH(command_map::value_type& cmd, commands)
       {
         cout << " - " << cmd.first << endl;
@@ -26,8 +34,8 @@ namespace
   {
     using namespace std;
     using namespace mkt;
-    if(args.size()<3) cout << "Hello, world!" << endl;
-    else if(args.size()==3) cout << "Hello, " << args[2] << endl;
+    if(args.size()<2) cout << "Hello, world!" << endl;
+    else if(args.size()==2) cout << "Hello, " << args[1] << endl;
     else throw command_line_error("Too many arguments");
   }
 
@@ -54,14 +62,22 @@ namespace
 
 namespace mkt
 {
-  argument_vector  _av;
-  boost::mutex     _av_lock;
-
   std::string version()
   {
     return std::string(MKT_VERSION);
   }
   
+  void exec(const argument_vector& args)
+  {
+    using namespace boost;
+    boost::mutex::scoped_lock lock(_commands_lock);
+    if(args.empty()) throw command_line_error("Missing command string");
+    std::string cmd = args[0];
+    if(commands.find(cmd)==commands.end())
+      throw command_line_error(str(format("Invalid command: %1%") % cmd));
+    commands[cmd].get<0>()(args);
+  }
+
   argument_vector argv()
   {
     boost::mutex::scoped_lock lock(_av_lock);
@@ -74,13 +90,11 @@ namespace mkt
     _av = av;
   }
 
-  void exec(const argument_vector& args)
+  void argv(int argc, char **argv)
   {
-    using namespace boost;
-    if(args.size()<2) throw command_line_error("Missing command string");
-    std::string cmd = args[1];
-    if(commands.find(cmd)==commands.end())
-      throw command_line_error(str(format("Invalid command: %1%") % cmd));
-    commands[cmd].get<0>()(args);
+    mkt::argument_vector args;
+    for(int i = 0; i < argc; i++)
+      args.push_back(argv[i]);
+    mkt::argv(args);
   }
 }

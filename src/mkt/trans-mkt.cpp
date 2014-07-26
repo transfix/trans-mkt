@@ -1,5 +1,4 @@
-#include <mkt/config.h>
-#include <mkt/commands.h>
+#include <mkt/app.h>
 #include <mkt/exceptions.h>
 
 #include <boost/current_function.hpp>
@@ -8,45 +7,44 @@
 #include <iostream>
 #include <cstdlib>
 
-void do_help(const std::string& prog)
+void do_help()
 {
-  mkt::argument_vector help_args;
-  help_args.push_back(prog);
-  help_args.push_back("help");
-  mkt::exec(help_args);
+  mkt::exec(mkt::argument_vector(1,"help"));
 }
 
 int main(int argc, char **argv)
 {
   using namespace std;
-  using namespace mkt;
   
-  vector<string> args;
-  for(int i = 0; i < argc; i++)
-    args.push_back(argv[i]);
+  mkt::argv(argc, argv);
 
   try
     {
-      //print help if not enough args
-      if(args.size()<2)
+      try
         {
-          do_help(argv[0]);
+          //print help if not enough args
+          if(argc<2)
+            {
+              do_help();
+            }
+          else
+            {
+              mkt::argument_vector args = mkt::argv();
+              args.erase(args.begin()); //remove the program argument
+              mkt::exec(args);
+            }
         }
-      else
+      catch(mkt::command_line_error& e)
         {
-          mkt::exec(args);
+          if(!e.what_str().empty()) cout << "Error: " << e.what_str() << endl;
+          do_help();
+          return EXIT_FAILURE;
         }
-    }
-  catch(command_line_error& e)
-    {
-      if(!e.what_str().empty()) cout << "Error: " << e.what_str() << endl;
-      cout << "Usage: " << argv[0] << " <command> <command args>" << endl;
-      do_help(args[0]);
-      return EXIT_FAILURE;
     }
   catch(std::exception& e)
     {
       cerr << "Exception: " << e.what() << endl;
+      return EXIT_FAILURE;
     }
 
   return EXIT_SUCCESS;
