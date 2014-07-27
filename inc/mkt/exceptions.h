@@ -28,6 +28,4 @@ namespace mkt
   private: \
     std::string _msg; \
   }
-
-  MKT_DEF_EXCEPTION(command_line_error);
 }

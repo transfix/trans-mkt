@@ -34,7 +34,7 @@ int main(int argc, char **argv)
               mkt::exec(args);
             }
         }
-      catch(mkt::command_line_error& e)
+      catch(mkt::exception& e)
         {
           if(!e.what_str().empty()) cout << "Error: " << e.what_str() << endl;
           do_help();

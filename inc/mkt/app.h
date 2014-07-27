@@ -6,6 +6,7 @@
 #include <boost/thread/xtime.hpp>
 #include <boost/thread.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/current_function.hpp>
 
 #include <string>
 #include <vector>
@@ -23,7 +24,7 @@ namespace mkt
    * Command related types
    */
   
-  typedef std::vector<std::string> argument_vector;
+  typedef std::vector<std::string>                       argument_vector;
   typedef boost::function<void (const argument_vector&)> command_func;
   typedef boost::tuple<command_func, std::string>        command;
   typedef std::map<std::string, command>                 command_map;
@@ -69,26 +70,6 @@ namespace mkt
   void this_thread_info(const std::string& infostr);
   std::string this_thread_info();
 
-  //T is a class with operator()
-  // 10/09/2011 -- transfix -- added new argument 'wait'
-  template<class T>
-    void startThread(const std::string& key, const T& t, bool wait = true)
-    {
-      //If waiting and an existing thread with this key is running,
-      //stop the existing running thread with this key and wait for
-      //it to actually stop before starting a new one.  Else just use
-      //a unique key.
-      if(wait && hasThread(key))
-        {
-          thread_ptr tptr = threads(key);
-          tptr->interrupt(); //initiate thread quit
-          tptr->join();      //wait for it to quit
-        }
-
-      threads(wait ? key : uniqueThreadKey(key),
-              thread_ptr(new boost::thread(t)));
-    }
-
   //Used to easily manage saving/restoring thread info as we
   //traverse a threads stack.
   class thread_info
@@ -112,6 +93,41 @@ namespace mkt
   private:
     thread_info _thread_info;
   };
+
+  //helper for start_thread that sets up a thread_feedback
+  //object for the thread.
+  template<class T>
+    class init_thread
+    {
+    public:
+    init_thread(const T& t) : _t(t) {}
+      void operator()()
+      {
+        thread_feedback tf(BOOST_CURRENT_FUNCTION);
+        _t();
+      }
+    private:
+      T _t;
+    };
+
+  //T is a class with operator()
+  template<class T>
+  void start_thread(const std::string& key, const T& t, bool wait = true)
+    {
+      //If waiting and an existing thread with this key is running,
+      //stop the existing running thread with this key and wait for
+      //it to actually stop before starting a new one.  Else just use
+      //a unique key.
+      if(wait && has_thread(key))
+        {
+          thread_ptr tptr = threads(key);
+          tptr->interrupt(); //initiate thread quit
+          tptr->join();      //wait for it to quit
+        }
+
+      threads(wait ? key : unique_thread_key(key),
+              thread_ptr(new boost::thread(init_thread<T>(t))));
+    }
 
   void wait_for_threads();
   void sleep(double ms);

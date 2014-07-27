@@ -2,6 +2,7 @@
 #include <mkt/app.h>
 #include <mkt/exceptions.h>
 
+#include <boost/bind.hpp>
 #include <boost/foreach.hpp>
 #include <boost/thread.hpp>
 #include <boost/lexical_cast.hpp>
@@ -10,6 +11,12 @@
 #include <set>
 #include <iostream>
 #include <cstdlib>
+
+namespace mkt
+{
+  MKT_DEF_EXCEPTION(async_error);
+  MKT_DEF_EXCEPTION(command_line_error);
+}
 
 //Commands related code
 namespace
@@ -20,14 +27,14 @@ namespace
   void help(const mkt::argument_vector& args)
   {
     using namespace std;
-    using namespace mkt;
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
 
-    argument_vector prog_args = argv();
+    mkt::argument_vector prog_args = mkt::argv();
     std::string prog_name = !prog_args.empty() ? prog_args[0] : "mkt";
 
-    cout << "Version: " << version() << endl;
+    cout << "Version: " << mkt::version() << endl;
     cout << "Usage: " << prog_name << " <command> <command args>" << endl << endl;
-    BOOST_FOREACH(command_map::value_type& cmd, commands)
+    BOOST_FOREACH(mkt::command_map::value_type& cmd, commands)
       {
         cout << " - " << cmd.first << endl;
         cout << cmd.second.get<1>() << endl << endl;
@@ -37,10 +44,40 @@ namespace
   void hello(const mkt::argument_vector& args)
   {
     using namespace std;
-    using namespace mkt;
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+
     if(args.size()<2) cout << "Hello, world!" << endl;
     else if(args.size()==2) cout << "Hello, " << args[1] << endl;
-    else throw command_line_error("Too many arguments");
+    else throw mkt::command_line_error("Too many arguments.");
+  }
+
+  //launches a command in a thread
+  void async(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+
+    mkt::argument_vector local_args = args;
+    local_args.erase(local_args.begin()); //remove command argument
+    if(local_args.empty())
+      throw mkt::async_error("No command to execute.");
+    
+    //check if the next argument is 'nowait.'  If so, set the wait flag false
+    bool wait = true;
+    if(local_args[0] == "nowait")
+      wait = false;
+    
+    mkt::start_thread(local_args[0], //TODO: do a join for the whole local_args
+                      boost::bind(mkt::exec, local_args),
+                      wait);
+  }
+
+  void sleep(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+
+    if(args.size()<2) 
+      throw mkt::command_line_error("Missing argument for sleep");
+    mkt::sleep(boost::lexical_cast<double>(args[1]));
   }
 
   class init_commands
@@ -52,13 +89,22 @@ namespace
       using boost::str;
       using boost::format;
       using boost::make_tuple;
-      
+
+      commands["async"] =
+        boost::make_tuple(mkt::command_func(async),
+                          string("Executes a command in another thread and"
+                                 " returns immediately. If 'nowait' is before\n"
+                                 "the command, this command will execute even if"
+                                 " a command with the same thread name is running."));
       commands["hello"] =
         boost::make_tuple(mkt::command_func(hello),
                           string("Prints hello world."));
       commands["help"] = 
         boost::make_tuple(mkt::command_func(help),
                           string("Prints command list."));
+      commands["sleep"] = 
+        boost::make_tuple(mkt::command_func(sleep),
+                          string("sleep <milliseconds>\nSleep for the time specified."));
     }
   } init_commands_static_init;
 }
@@ -430,9 +476,10 @@ namespace mkt
   void sleep(double ms)
   {
     thread_info ti(BOOST_CURRENT_FUNCTION);
+    std::cout << "sleeping for: " << ms << std::endl;
     boost::xtime xt;
     boost::xtime_get( &xt, boost::TIME_UTC_ );
-    xt.nsec += uint64(ms * std::pow(10.0,6.0));
-    boost::thread::sleep( xt );
+    xt.nsec += boost::xtime::xtime_nsec_t(ms * std::pow(10.0,6.0));
+    boost::this_thread::sleep( xt );
   }
 }
