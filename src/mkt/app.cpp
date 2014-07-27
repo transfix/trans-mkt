@@ -77,7 +77,7 @@ namespace
 
     if(args.size()<2) 
       throw mkt::command_line_error("Missing argument for sleep");
-    mkt::sleep(boost::lexical_cast<double>(args[1]));
+    mkt::sleep(boost::lexical_cast<int64_t>(args[1]));
   }
 
   class init_commands
@@ -157,36 +157,6 @@ namespace
     BOOST_FOREACH(boost::thread::id tid, infoIdsToRemove)
       _thread_info.erase(tid);
   }
-
-  class wait_for_threads
-  {
-  public:
-    wait_for_threads()
-    {
-      //Register a call to wait for all child threads to finish before exiting
-      //the main thread.
-      std::atexit(wait_for_threads::wait);
-    }
-
-    static void wait()
-    {
-      //Wait for all the threads to finish
-      mkt::thread_map map = mkt::threads();
-      BOOST_FOREACH(mkt::thread_map::value_type val, map)
-        {
-          try
-            {
-              std::cout << BOOST_CURRENT_FUNCTION
-                        << " :: "
-                        << "waiting for thread " << val.first
-                        << std::endl;
-              
-              val.second->join();
-            }
-          catch(boost::thread_interrupted&) {}
-        }
-    }
-  } wait_for_threads_static_init;
 }
 
 namespace mkt
@@ -232,6 +202,15 @@ namespace mkt
    */
   map_change_signal threads_changed;
 
+  //use this to trigger the threads_changed signal because
+  //problems happen when signals are envoked during program exit.
+  void trigger_threads_changed(const std::string& key)
+  {
+	bool ae = wait_for_threads::at_exit();
+    if(!ae)
+      threads_changed(key);
+  }
+
   thread_map threads()
   {
     boost::this_thread::interruption_point();
@@ -264,7 +243,7 @@ namespace mkt
       update_thread_keys();
     }
 
-    threads_changed(key);
+    trigger_threads_changed(key);
   }
 
   void threads(const thread_map& map)
@@ -281,7 +260,7 @@ namespace mkt
       update_thread_keys();
     }
 
-    threads_changed("all");
+    trigger_threads_changed("all");
   }
 
   bool has_thread(const std::string& key)
@@ -347,7 +326,7 @@ namespace mkt
     }
 
     if(changed)
-      threads_changed(key);
+      trigger_threads_changed(key);
   }
 
   void finish_thread_progress(const std::string& key)
@@ -367,7 +346,7 @@ namespace mkt
 
       _thread_progress.erase(tid);
     }
-    threads_changed(key);
+    trigger_threads_changed(key);
   }
 
   std::string thread_key()
@@ -416,7 +395,7 @@ namespace mkt
 
       _thread_info[tid] = infostr;
     }
-    threads_changed(key);
+    trigger_threads_changed(key);
   }
 
   std::string get_thread_info(const std::string& key)
@@ -462,7 +441,7 @@ namespace mkt
   }
 
   thread_feedback::thread_feedback(const std::string& info)
-    : _thread_info(info)
+    : _info(info)
   {
     thread_progress(0.0);
   }
@@ -473,13 +452,38 @@ namespace mkt
     remove_thread(thread_key());
   }
 
-  void sleep(double ms)
+  wait_for_threads::~wait_for_threads()
+  {
+    _at_exit = true;
+    wait();
+  }
+
+  bool wait_for_threads::at_exit() { return _at_exit; }
+
+  void wait_for_threads::wait()
+  {
+    //Wait for all the threads to finish
+    mkt::thread_map map = mkt::threads();
+    BOOST_FOREACH(mkt::thread_map::value_type val, map)
+      {
+        try
+          {
+            std::cout << BOOST_CURRENT_FUNCTION
+                      << " :: "
+                      << "waiting for thread " << val.first
+                      << std::endl;
+            
+            val.second->join();
+          }
+        catch(boost::thread_interrupted&) {}
+      }
+  }
+
+  bool wait_for_threads::_at_exit = false;
+
+  void sleep(int64 ms)
   {
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    std::cout << "sleeping for: " << ms << std::endl;
-    boost::xtime xt;
-    boost::xtime_get( &xt, boost::TIME_UTC_ );
-    xt.nsec += boost::xtime::xtime_nsec_t(ms * std::pow(10.0,6.0));
-    boost::this_thread::sleep( xt );
+	boost::this_thread::sleep( boost::posix_time::milliseconds(ms) );
   }
 }

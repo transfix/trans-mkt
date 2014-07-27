@@ -87,11 +87,10 @@ namespace mkt
   class thread_feedback
   {
   public:
-  
     thread_feedback(const std::string& info = "running");    
     ~thread_feedback();
   private:
-    thread_info _thread_info;
+    thread_info _info;
   };
 
   //helper for start_thread that sets up a thread_feedback
@@ -129,6 +128,16 @@ namespace mkt
               thread_ptr(new boost::thread(init_thread<T>(t))));
     }
 
-  void wait_for_threads();
-  void sleep(double ms);
+  //instantiate this in main() to wait for all threads to finish before quitting the process.
+  class wait_for_threads
+  {
+  public:
+    ~wait_for_threads();
+    static bool at_exit();
+    static void wait();
+  private:
+    static bool _at_exit;
+  };
+
+  void sleep(int64 ms);
 }

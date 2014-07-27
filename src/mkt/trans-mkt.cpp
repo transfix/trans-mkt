@@ -16,6 +16,7 @@ int main(int argc, char **argv)
 {
   using namespace std;
   
+  mkt::wait_for_threads w;
   mkt::argv(argc, argv);
 
   try
