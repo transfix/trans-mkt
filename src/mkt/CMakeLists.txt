@@ -7,6 +7,7 @@ endif(WIN32)
 set(INCLUDE_FILES
   ../../inc/mkt/exceptions.h
   ../../inc/mkt/app.h
+  ${CMAKE_BINARY_DIR}/inc/mkt/config.h
 )
 
 set(SOURCE_FILES
@@ -14,7 +15,7 @@ set(SOURCE_FILES
 )
 
 source_group("Source Files" FILES ${SOURCE_FILES})
-source_group("Header Files" FILES ${INCLUDE_FILES})
+source_group("Include Files" FILES ${INCLUDE_FILES})
 
 include_directories(
   ../../inc
@@ -32,16 +33,14 @@ message(STATUS "libmkt version: ${MKT_VERSION}")
 
 set(MKT_LINK_LIBS "")
 
-#option(MKT_USING_XMLRPC "If this is enabled, mkt will use xmlrpc" ON)
-#mark_as_advanced(MKT_USING_XMLRPC)
-#if(MKT_USING_XMLRPC)
-#  set(MKT_LINK_LIBS ${MKT_LINK_LIBS} xmlrpc)
-#  set(SOURCE_FILES
-#      ${SOURCE_FILES}
-#      xmlrpc_client.cpp
-#      xmlrpc_server.cpp)
-#  add_definitions(-DUSING_XMLRPC)
-#endif(MKT_USING_XMLRPC)
+option(MKT_USING_XMLRPC "If this is enabled, mkt will use xmlrpc" ON)
+mark_as_advanced(MKT_USING_XMLRPC)
+if(MKT_USING_XMLRPC)
+  set(MKT_LINK_LIBS ${MKT_LINK_LIBS} xmlrpc)
+  set(SOURCE_FILES
+      ${SOURCE_FILES}
+      xmlrpc.cpp)
+endif(MKT_USING_XMLRPC)
 
 #if poco is found, use it for the http server.
 #find_package(POCO)

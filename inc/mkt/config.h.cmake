@@ -2,6 +2,7 @@
 #define CONFIG_H
 
 #define MKT_VERSION "@MKT_VERSION@"
+#cmakedefine MKT_USING_XMLRPC
 
 #define NOMINMAX
 

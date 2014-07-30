@@ -1,3 +1,6 @@
+#ifndef __MKT_EXCEPTIONS_H__
+#define __MKT_EXCEPTIONS_H__
+
 #include <boost/exception/exception.hpp>
 #include <boost/format.hpp>
 
@@ -29,3 +32,5 @@ namespace mkt
     std::string _msg; \
   }
 }
+
+#endif

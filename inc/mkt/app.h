@@ -1,3 +1,6 @@
+#ifndef __MKT_APP_H__
+#define __MKT_APP_H__
+
 #include <boost/function.hpp>
 #include <boost/tuple/tuple.hpp>
 #include <boost/signals2.hpp>
@@ -28,6 +31,12 @@ namespace mkt
   typedef boost::function<void (const argument_vector&)> command_func;
   typedef boost::tuple<command_func, std::string>        command;
   typedef std::map<std::string, command>                 command_map;
+
+  void add_command(const std::string& name,
+                   const command_func& func,
+                   const std::string& desc);
+  void remove_command(const std::string& name);
+  argument_vector get_commands();
 
   //Executes a command. The first string is the command, with everything
   //after being the command's arguments.
@@ -141,3 +150,5 @@ namespace mkt
 
   void sleep(int64 ms);
 }
+
+#endif

@@ -2,11 +2,16 @@
 #include <mkt/app.h>
 #include <mkt/exceptions.h>
 
+#ifdef MKT_USING_XMLRPC
+#include <mkt/xmlrpc.h>
+#endif
+
 #include <boost/bind.hpp>
 #include <boost/foreach.hpp>
 #include <boost/thread.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/current_function.hpp>
+#include <boost/algorithm/string/join.hpp>
 
 #include <set>
 #include <iostream>
@@ -21,8 +26,38 @@ namespace mkt
 //Commands related code
 namespace
 {
-  mkt::command_map     commands;
+  mkt::command_map     _commands;
   boost::mutex         _commands_lock;
+
+  //launches a command in a thread
+  void async(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+
+    mkt::argument_vector local_args = args;
+    local_args.erase(local_args.begin()); //remove command argument
+    if(local_args.empty())
+      throw mkt::async_error("No command to execute.");
+    
+    //check if the next argument is 'wait.'  If so, set the wait flag true
+    bool wait = false;
+    if(local_args[0] == "wait")
+      wait = true;
+    
+    std::string local_args_str = boost::join(local_args," ");
+    mkt::start_thread(local_args_str,
+                      boost::bind(mkt::exec, local_args),
+                      wait);
+  }
+
+  void echo(const mkt::argument_vector& args)
+  {
+    mkt::argument_vector local_args = args;
+    local_args.erase(local_args.begin());
+    std::string echo_str = 
+      boost::algorithm::join(local_args," ");
+    std::cout << echo_str << std::endl;
+  }
 
   void help(const mkt::argument_vector& args)
   {
@@ -34,7 +69,7 @@ namespace
 
     cout << "Version: " << mkt::version() << endl;
     cout << "Usage: " << prog_name << " <command> <command args>" << endl << endl;
-    BOOST_FOREACH(mkt::command_map::value_type& cmd, commands)
+    BOOST_FOREACH(mkt::command_map::value_type& cmd, _commands)
       {
         cout << " - " << cmd.first << endl;
         cout << cmd.second.get<1>() << endl << endl;
@@ -51,25 +86,46 @@ namespace
     else throw mkt::command_line_error("Too many arguments.");
   }
 
-  //launches a command in a thread
-  void async(const mkt::argument_vector& args)
+  void list_threads(const mkt::argument_vector& args)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-
-    mkt::argument_vector local_args = args;
-    local_args.erase(local_args.begin()); //remove command argument
-    if(local_args.empty())
-      throw mkt::async_error("No command to execute.");
-    
-    //check if the next argument is 'nowait.'  If so, set the wait flag false
-    bool wait = true;
-    if(local_args[0] == "nowait")
-      wait = false;
-    
-    mkt::start_thread(local_args[0], //TODO: do a join for the whole local_args
-                      boost::bind(mkt::exec, local_args),
-                      wait);
+    mkt::thread_map tm = mkt::threads();
+    BOOST_FOREACH(mkt::thread_map::value_type& cur, tm)
+      std::cout << cur.first << std::endl;
   }
+
+#ifdef MKT_USING_XMLRPC
+  void local_ip(const mkt::argument_vector& args)
+  {
+    using namespace std;
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    cout << mkt::get_local_ip_address() << endl;
+  }
+
+  void remote(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);    
+    mkt::argument_vector local_args = args;
+    local_args.erase(local_args.begin());
+    if(local_args.size() < 2)
+      throw mkt::command_line_error("Missing arguments");
+    
+    std::string host = local_args[0];
+    local_args.erase(local_args.begin());
+
+    int port = 31337;
+    if(local_args[0] == "port")
+      {
+        local_args.erase(local_args.begin());
+        if(local_args.empty())
+          throw mkt::command_line_error("Missing arguments");
+        port = boost::lexical_cast<int>(local_args[0]);
+        local_args.erase(local_args.begin());
+      }
+
+    mkt::exec_remote(local_args, host, port);
+  }  
+#endif
 
   void sleep(const mkt::argument_vector& args)
   {
@@ -80,31 +136,48 @@ namespace
     mkt::sleep(boost::lexical_cast<int64_t>(args[1]));
   }
 
+#ifdef MKT_USING_XMLRPC
+  void server(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    
+    int port = 31337;
+    if(args.size()>=2)
+      port = boost::lexical_cast<int>(args[1]);
+    
+    mkt::run_xmlrpc_server(port);
+  }
+#endif
+
   class init_commands
   {
   public:
     init_commands()
     {
       using namespace std;
-      using boost::str;
-      using boost::format;
-      using boost::make_tuple;
-
-      commands["async"] =
-        boost::make_tuple(mkt::command_func(async),
-                          string("Executes a command in another thread and"
-                                 " returns immediately. If 'nowait' is before\n"
-                                 "the command, this command will execute even if"
-                                 " a command with the same thread name is running."));
-      commands["hello"] =
-        boost::make_tuple(mkt::command_func(hello),
-                          string("Prints hello world."));
-      commands["help"] = 
-        boost::make_tuple(mkt::command_func(help),
-                          string("Prints command list."));
-      commands["sleep"] = 
-        boost::make_tuple(mkt::command_func(sleep),
-                          string("sleep <milliseconds>\nSleep for the time specified."));
+      using namespace mkt;
+      
+      add_command("async", async,
+                  "Executes a command in another thread and"
+                  " returns immediately. If 'wait' is before\n"
+                  "the command, this command will execute only after"
+                  " a command with the same thread name is finished running.");
+      add_command("echo", echo,
+                  "Prints out all arguments after echo to standard out.");
+      add_command("hello", hello, "Prints hello world.");
+      add_command("help", help, "Prints command list.");
+      add_command("list_threads", list_threads, "Lists running threads by name.");
+#ifdef MKT_USING_XMLRPC
+      add_command("local_ip", local_ip, 
+                  "Prints the local ip address of the default interface.");
+      add_command("remote", remote, 
+                  "remote <host> [port <port>] <command> -\n"
+                  "Executes a command on the specified host.");
+      add_command("server", server, 
+                  "server <port>\nStart an xmlrpc server at the specified port.");
+#endif    
+      add_command("sleep", sleep, "sleep <milliseconds>\nSleep for the time specified.");
+                  
     }
   } init_commands_static_init;
 }
@@ -166,15 +239,43 @@ namespace mkt
     return std::string(MKT_VERSION);
   }
   
+  void add_command(const std::string& name,
+                   const command_func& func,
+                   const std::string& desc)
+  {
+    using namespace boost;
+    mutex::scoped_lock lock(_commands_lock);
+    _commands[name] = make_tuple(func, desc);
+  }
+
+  void remove_command(const std::string& name)
+  {
+    boost::mutex::scoped_lock lock(_commands_lock);
+    _commands.erase(name);
+  }
+
+  argument_vector get_commands()
+  {
+    boost::mutex::scoped_lock lock(_commands_lock);    
+    argument_vector av;
+    BOOST_FOREACH(command_map::value_type& cur, _commands)
+      av.push_back(cur.first);
+    return av;
+  }
+
   void exec(const argument_vector& args)
   {
     using namespace boost;
-    boost::mutex::scoped_lock lock(_commands_lock);
-    if(args.empty()) throw command_line_error("Missing command string");
-    std::string cmd = args[0];
-    if(commands.find(cmd)==commands.end())
-      throw command_line_error(str(format("Invalid command: %1%") % cmd));
-    commands[cmd].get<0>()(args);
+    command cmd;
+    {
+      mutex::scoped_lock lock(_commands_lock);
+      if(args.empty()) throw command_line_error("Missing command string");
+      std::string cmd_str = args[0];
+      if(_commands.find(cmd_str)==_commands.end())
+        throw command_line_error(str(format("Invalid command: %1%") % cmd_str));
+      cmd = _commands[cmd_str];
+    }
+    cmd.get<0>()(args);
   }
 
   argument_vector argv()
@@ -484,6 +585,6 @@ namespace mkt
   void sleep(int64 ms)
   {
     thread_info ti(BOOST_CURRENT_FUNCTION);
-	boost::this_thread::sleep( boost::posix_time::milliseconds(ms) );
+    boost::this_thread::sleep( boost::posix_time::milliseconds(ms) );
   }
 }
