@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <iostream>
 
 namespace mkt
 {
@@ -79,8 +80,8 @@ namespace mkt
   void this_thread_info(const std::string& infostr);
   std::string this_thread_info();
 
-  //Used to easily manage saving/restoring thread info as we
-  //traverse a threads stack.
+  //Used to easily manage saving/restoring thread info as a thread
+  //is executed.
   class thread_info
   {
   public:
@@ -91,7 +92,7 @@ namespace mkt
     double _orig_progress;
   };
 
-  //Instantiate one of these on the shallowest point of your 
+  //Meant to be instantiated at the shallowest scope of a
   //thread's stack
   class thread_feedback
   {
@@ -111,8 +112,15 @@ namespace mkt
     init_thread(const T& t) : _t(t) {}
       void operator()()
       {
-        thread_feedback tf(BOOST_CURRENT_FUNCTION);
-        _t();
+        try
+          {
+            thread_feedback tf(BOOST_CURRENT_FUNCTION);
+            _t();
+          }
+        catch(boost::thread_interrupted&)
+          {
+            //TODO: log this event...
+          }
       }
     private:
       T _t;

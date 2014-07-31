@@ -11,16 +11,21 @@
 #include <boost/thread.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/current_function.hpp>
+#include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/join.hpp>
+#include <boost/algorithm/string/classification.hpp>
 
 #include <set>
 #include <iostream>
+#include <fstream>
 #include <cstdlib>
 
 namespace mkt
 {
   MKT_DEF_EXCEPTION(async_error);
-  MKT_DEF_EXCEPTION(command_line_error);
+  MKT_DEF_EXCEPTION(command_error);
+  MKT_DEF_EXCEPTION(system_error);
+  MKT_DEF_EXCEPTION(file_error);
 }
 
 //Commands related code
@@ -83,8 +88,140 @@ namespace
 
     if(args.size()<2) cout << "Hello, world!" << endl;
     else if(args.size()==2) cout << "Hello, " << args[1] << endl;
-    else throw mkt::command_line_error("Too many arguments.");
+    else throw mkt::command_error("Too many arguments.");
   }
+
+  void interrupt(const mkt::argument_vector& args)
+  {
+    using namespace std;
+    if(args.size()<2) throw mkt::command_error("Missing thread name.");
+
+    mkt::argument_vector local_args = args;
+    local_args.erase(local_args.begin()); //remove the command string to form the thread name
+    std::string thread_name = 
+      boost::algorithm::join(local_args," ");
+
+    mkt::thread_ptr thread = mkt::threads(thread_name);
+    if(thread) thread->interrupt();
+    else throw mkt::system_error("Null thread pointer.");
+  }
+
+  void serial(const mkt::argument_vector& args)
+  {
+    using namespace std;
+
+    mkt::argument_vector local_args = args;
+    local_args.erase(local_args.begin()); //remove the command string to form the thread name
+
+    //split the argument vector into separate command strings via 'then' keywords
+    vector<mkt::argument_vector> split_args;
+    mkt::argument_vector cur_command;
+    BOOST_FOREACH(const string& cur, local_args)
+      {
+        if(cur != "then")
+          cur_command.push_back(cur);
+        else
+          {
+            split_args.push_back(cur_command);
+            cur_command.clear();
+          }
+      }
+
+    if(!cur_command.empty())
+      split_args.push_back(cur_command);
+    else if(split_args.empty())
+      throw mkt::command_error("Missing command to execute.");
+    
+    //now execute the split commands serially
+    BOOST_FOREACH(const mkt::argument_vector& cur, split_args)
+      mkt::exec(cur);
+  }
+
+  void parallel(const mkt::argument_vector& args)
+  {
+    using namespace std;
+
+    mkt::argument_vector local_args = args;
+    local_args.erase(local_args.begin()); //remove the command string to form the thread name
+
+    //split the argument vector into separate command strings via 'and' keywords
+    vector<mkt::argument_vector> split_args;
+    mkt::argument_vector cur_command;
+    BOOST_FOREACH(const string& cur, local_args)
+      {
+        if(cur != "and")
+          cur_command.push_back(cur);
+        else
+          {
+            split_args.push_back(cur_command);
+            cur_command.clear();
+          }
+      }
+
+    if(!cur_command.empty())
+      split_args.push_back(cur_command);
+    else if(split_args.empty())
+      throw mkt::command_error("Missing command to execute.");
+    
+    //now execute the split commands in parallel
+    BOOST_FOREACH(const mkt::argument_vector& cur, split_args)
+      {
+        mkt::argument_vector local_cur = cur;
+        local_cur.insert(local_cur.begin(), "async");
+        async(local_cur);
+      }
+  }
+
+  //TODO: make 'file' a subcommand of parallel and serial
+  //TODO: check for # comments
+  void file(const mkt::argument_vector& args)
+  {
+    using namespace std;
+    using namespace boost::algorithm;
+
+    mkt::argument_vector local_args = args;
+    local_args.erase(local_args.begin());
+    if(local_args.empty()) throw mkt::command_error("Missing file name.");
+
+    string filename = local_args[0];
+    ifstream inf(filename.c_str());
+    if(!inf) throw mkt::file_error("Could not open" + filename);
+
+    unsigned int line_num = 0;
+    while(!inf.eof())
+      { 
+        string line;
+        getline(inf, line); 
+        line_num++;
+        mkt::argument_vector av;
+        split(av, line, is_any_of(" "), token_compress_on);
+
+        //remove empty strings
+        mkt::argument_vector av_clean;
+        BOOST_FOREACH(const string& cur, av)
+          if(!cur.empty()) av_clean.push_back(cur);
+        
+        if(!av.empty())
+          mkt::exec(av_clean);
+      }    
+  }
+  
+  //commands TODO:
+  //file - read commands from a file
+  //pinger - repeatedly ping a command
+  //url - read commands from a url
+  //alias - give a name to a command so you can refer to an argument vector by a single name
+  //list_thread_ids
+  //set/get map key value pairs
+  //list map keys
+  //find key
+  //remove key
+  //save/restore map to/from file (or remote resource?)
+  //current_time
+
+  //command interpreter?? gnu readline
+
+  //output function - figure out best way to pipe output from server commands to local commands
 
   void list_threads(const mkt::argument_vector& args)
   {
@@ -108,7 +245,7 @@ namespace
     mkt::argument_vector local_args = args;
     local_args.erase(local_args.begin());
     if(local_args.size() < 2)
-      throw mkt::command_line_error("Missing arguments");
+      throw mkt::command_error("Missing arguments");
     
     std::string host = local_args[0];
     local_args.erase(local_args.begin());
@@ -118,7 +255,7 @@ namespace
       {
         local_args.erase(local_args.begin());
         if(local_args.empty())
-          throw mkt::command_line_error("Missing arguments");
+          throw mkt::command_error("Missing arguments");
         port = boost::lexical_cast<int>(local_args[0]);
         local_args.erase(local_args.begin());
       }
@@ -132,7 +269,7 @@ namespace
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
 
     if(args.size()<2) 
-      throw mkt::command_line_error("Missing argument for sleep");
+      throw mkt::command_error("Missing argument for sleep");
     mkt::sleep(boost::lexical_cast<int64_t>(args[1]));
   }
 
@@ -164,18 +301,27 @@ namespace
                   " a command with the same thread name is finished running.");
       add_command("echo", echo,
                   "Prints out all arguments after echo to standard out.");
+      add_command("file", file,
+                  "file <file path> - \n"
+                  "Executes commands listed in a file, line by line sequentially.");
       add_command("hello", hello, "Prints hello world.");
       add_command("help", help, "Prints command list.");
+      add_command("interrupt", interrupt, "Interrupts a running thread.");
       add_command("list_threads", list_threads, "Lists running threads by name.");
 #ifdef MKT_USING_XMLRPC
       add_command("local_ip", local_ip, 
                   "Prints the local ip address of the default interface.");
+      add_command("parallel", parallel,
+                  "Executes a series of commands in parallel, separated by a 'and' keyword.");
       add_command("remote", remote, 
                   "remote <host> [port <port>] <command> -\n"
                   "Executes a command on the specified host.");
+#endif
+      add_command("serial", serial, "Execute commands serially separated by a 'then' keyword.");
+#ifdef MKT_USING_XMLRPC
       add_command("server", server, 
                   "server <port>\nStart an xmlrpc server at the specified port.");
-#endif    
+#endif
       add_command("sleep", sleep, "sleep <milliseconds>\nSleep for the time specified.");
                   
     }
@@ -269,10 +415,10 @@ namespace mkt
     command cmd;
     {
       mutex::scoped_lock lock(_commands_lock);
-      if(args.empty()) throw command_line_error("Missing command string");
+      if(args.empty()) throw command_error("Missing command string");
       std::string cmd_str = args[0];
       if(_commands.find(cmd_str)==_commands.end())
-        throw command_line_error(str(format("Invalid command: %1%") % cmd_str));
+        throw command_error(str(format("Invalid command: %1%") % cmd_str));
       cmd = _commands[cmd_str];
     }
     cmd.get<0>()(args);
@@ -307,7 +453,7 @@ namespace mkt
   //problems happen when signals are envoked during program exit.
   void trigger_threads_changed(const std::string& key)
   {
-	bool ae = wait_for_threads::at_exit();
+    bool ae = wait_for_threads::at_exit();
     if(!ae)
       threads_changed(key);
   }
