@@ -3,6 +3,7 @@
 
 #define MKT_VERSION "@MKT_VERSION@"
 #cmakedefine MKT_USING_XMLRPC
+#cmakedefine MKT_INTERACTIVE
 
 #define NOMINMAX
 

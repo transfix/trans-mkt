@@ -1,6 +1,10 @@
 #include <mkt/app.h>
 #include <mkt/exceptions.h>
 
+#ifdef MKT_INTERACTIVE
+#include <editline/readline.h>
+#endif
+
 #include <boost/current_function.hpp>
 #include <boost/foreach.hpp>
 
@@ -11,6 +15,34 @@ void do_help()
 {
   mkt::exec(mkt::argument_vector(1,"help"));
 }
+
+#ifdef MKT_INTERACTIVE
+void interactive()
+{
+  using namespace std;
+  char *line;
+  while((line = readline("mkt> ")))
+    {
+      std::string str_line(line);
+      add_history(line);
+      free(line);
+
+      if(str_line == "exit" || str_line == "quit") break;
+
+      try
+        {
+          mkt::argument_vector args = mkt::split(str_line);
+          if(!args.empty())
+            mkt::exec(args);
+        }
+      catch(mkt::exception& e)
+        {
+          if(!e.what_str().empty()) 
+            cout << "Error: " << e.what_str() << endl;          
+        }
+    }
+}
+#endif
 
 int main(int argc, char **argv)
 {
@@ -26,7 +58,12 @@ int main(int argc, char **argv)
           //print help if not enough args
           if(argc<2)
             {
+#ifdef MKT_INTERACTIVE
+              interactive();
+#else
               do_help();
+#endif
+
             }
           else
             {

@@ -1,4 +1,3 @@
-#include <mkt/config.h>
 #include <mkt/app.h>
 #include <mkt/exceptions.h>
 
@@ -14,6 +13,7 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/classification.hpp>
+#include <boost/algorithm/string/trim.hpp>
 
 #include <set>
 #include <iostream>
@@ -53,6 +53,20 @@ namespace
     mkt::start_thread(local_args_str,
                       boost::bind(mkt::exec, local_args),
                       wait);
+  }
+
+  //TODO: check for # comments
+  void async_file(const mkt::argument_vector& args)
+  {
+    using namespace std;
+    using namespace boost::algorithm;
+
+    mkt::argument_vector local_args = args;
+    local_args.erase(local_args.begin());
+    if(local_args.empty()) throw mkt::command_error("Missing file name.");
+
+    string filename = local_args[0];
+    mkt::exec_file(filename, true);
   }
 
   void echo(const mkt::argument_vector& args)
@@ -172,7 +186,6 @@ namespace
       }
   }
 
-  //TODO: make 'file' a subcommand of parallel and serial
   //TODO: check for # comments
   void file(const mkt::argument_vector& args)
   {
@@ -184,31 +197,11 @@ namespace
     if(local_args.empty()) throw mkt::command_error("Missing file name.");
 
     string filename = local_args[0];
-    ifstream inf(filename.c_str());
-    if(!inf) throw mkt::file_error("Could not open" + filename);
-
-    unsigned int line_num = 0;
-    while(!inf.eof())
-      { 
-        string line;
-        getline(inf, line); 
-        line_num++;
-        mkt::argument_vector av;
-        split(av, line, is_any_of(" "), token_compress_on);
-
-        //remove empty strings
-        mkt::argument_vector av_clean;
-        BOOST_FOREACH(const string& cur, av)
-          if(!cur.empty()) av_clean.push_back(cur);
-        
-        if(!av.empty())
-          mkt::exec(av_clean);
-      }    
+    mkt::exec_file(filename);
   }
   
   //commands TODO:
-  //file - read commands from a file
-  //pinger - repeatedly ping a command
+  //pinger - repeat a command
   //url - read commands from a url
   //alias - give a name to a command so you can refer to an argument vector by a single name
   //list_thread_ids
@@ -299,6 +292,8 @@ namespace
                   " returns immediately. If 'wait' is before\n"
                   "the command, this command will execute only after"
                   " a command with the same thread name is finished running.");
+      add_command("async_file", async_file,
+                  "Executes commands listed in a file in parallel.");
       add_command("echo", echo,
                   "Prints out all arguments after echo to standard out.");
       add_command("file", file,
@@ -307,7 +302,7 @@ namespace
       add_command("hello", hello, "Prints hello world.");
       add_command("help", help, "Prints command list.");
       add_command("interrupt", interrupt, "Interrupts a running thread.");
-      add_command("list_threads", list_threads, "Lists running threads by name.");
+      add_command("threads", list_threads, "Lists running threads by name.");
 #ifdef MKT_USING_XMLRPC
       add_command("local_ip", local_ip, 
                   "Prints the local ip address of the default interface.");
@@ -422,6 +417,73 @@ namespace mkt
       cmd = _commands[cmd_str];
     }
     cmd.get<0>()(args);
+  }
+
+  void exec_file(const std::string& filename, bool parallel)
+  {
+    using namespace std;
+    using namespace boost;
+    using namespace boost::algorithm;
+
+    ifstream inf(filename.c_str());
+    if(!inf) throw mkt::file_error("Could not open " + filename);
+
+    unsigned int line_num = 0;
+    while(!inf.eof())
+      {
+        try
+          {
+            string line;
+            getline(inf, line);
+            trim(line);
+
+            //use '#' for comments
+            if(!line.empty() && line[0]=='#') continue;
+            
+            line_num++;
+            mkt::argument_vector av;
+            split(av, line, is_any_of(" "), token_compress_on);
+            
+            //remove empty strings
+            mkt::argument_vector av_clean;
+            BOOST_FOREACH(const string& cur, av)
+              if(!cur.empty()) av_clean.push_back(cur);
+        
+            if(!av_clean.empty())
+              {
+                if(!parallel)
+                  mkt::exec(av_clean);
+                else
+                  mkt::start_thread(mkt::join(av_clean),
+                                    boost::bind(mkt::exec, av_clean));
+              }
+          }
+        catch(mkt::exception& e)
+          {
+            throw mkt::command_error(str(format("file error on line %1%: %2%") 
+                                         % line_num
+                                         % e.what_str()));
+          }
+      }
+  }
+
+  argument_vector split(const std::string& args)
+  {
+    using namespace std;
+    using namespace boost::algorithm;
+
+    mkt::argument_vector av;
+    split(av, args, is_any_of(" "), token_compress_on);
+    //remove empty strings
+    mkt::argument_vector av_clean;
+    BOOST_FOREACH(const string& cur, av)
+      if(!cur.empty()) av_clean.push_back(cur);
+    return av_clean;
+  }
+
+  std::string join(const argument_vector& args)
+  {
+    return boost::join(args," ");
   }
 
   argument_vector argv()

@@ -42,14 +42,14 @@ if(MKT_USING_XMLRPC)
       xmlrpc.cpp)
 endif(MKT_USING_XMLRPC)
 
-#if poco is found, use it for the http server.
-#find_package(POCO)
-#if(POCO_FOUND)
-#  include_directories(${POCO_INCLUDE_DIRS})
-#  set(CVC_LINK_LIBS ${CVC_LINK_LIBS} ${POCO_LIBRARIES})
-#  add_definitions(-DCVC_USING_POCO)
-#  message("Poco libs: " ${POCO_LIBRARIES})
-#endif(POCO_FOUND)
+#link against the readline implementations
+if(MKT_INTERACTIVE)
+  if(WIN32)
+    set(MKT_LINK_LIBS ${MKT_LINK_LIBS} editline)
+  else(WIN32)
+    message("Interactive mode not supported outside of Windows yet.")
+  endif(WIN32)
+endif(MKT_INTERACTIVE)
 
 add_library(mkt ${SOURCE_FILES} ${INCLUDE_FILES})
 

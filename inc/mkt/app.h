@@ -1,6 +1,8 @@
 #ifndef __MKT_APP_H__
 #define __MKT_APP_H__
 
+#include <mkt/config.h>
+
 #include <boost/function.hpp>
 #include <boost/tuple/tuple.hpp>
 #include <boost/signals2.hpp>
@@ -42,6 +44,16 @@ namespace mkt
   //Executes a command. The first string is the command, with everything
   //after being the command's arguments.
   void exec(const argument_vector& args);
+
+  //Executes commands listed in a file.  If parallel is true, commands are executed
+  //in separate threads.
+  void exec_file(const std::string& filename, bool parallel = false);
+
+  //splits a string into an argument vector
+  argument_vector split(const std::string& args);
+
+  //joins an argument vector into a single string
+  std::string join(const argument_vector& args);
 
   //accessing the process' argument vector
   argument_vector argv();
