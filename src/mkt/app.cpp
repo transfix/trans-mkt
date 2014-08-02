@@ -437,10 +437,11 @@ namespace mkt
             getline(inf, line);
             trim(line);
 
+            line_num++;
+
             //use '#' for comments
             if(!line.empty() && line[0]=='#') continue;
-            
-            line_num++;
+
             mkt::argument_vector av;
             split(av, line, is_any_of(" "), token_compress_on);
             
