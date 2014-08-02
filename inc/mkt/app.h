@@ -169,6 +169,16 @@ namespace mkt
   };
 
   void sleep(int64 ms);
+
+  /*
+   * Variable map
+   */
+  typedef std::map<std::string, std::string> variable_map;
+  std::string var(const std::string& varname);
+  void var(const std::string& varname, const std::string& val);
+  void unset_var(const std::string& varname);
+  bool has_var(const std::string& varname);
+  argument_vector list_vars();
 }
 
 #endif
