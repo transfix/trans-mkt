@@ -233,6 +233,7 @@ namespace
   //commands TODO:
   //macro - command list, creates a new command. like serial but it doesnt call.  uses 'then' keyword.
   //        $argc represents number of macro arguments when called, and $argv_0000 ... $argv_9999 represents the args 
+  //stack - keep a variable stack, add commands to read from the stack.  use $0...$n for arguments, make them thread private
   //sync - report variable changes to every host:port in a comma separated list
   //read url into variable
   //read file into variable
