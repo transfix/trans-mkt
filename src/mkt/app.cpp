@@ -7,13 +7,14 @@
 
 #include <boost/bind.hpp>
 #include <boost/foreach.hpp>
-#include <boost/thread.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/current_function.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/trim.hpp>
+#include <boost/regex.hpp>
+#include <boost/array.hpp>
 
 #include <set>
 #include <iostream>
@@ -77,7 +78,7 @@ namespace
     local_args.erase(local_args.begin());
     std::string echo_str = 
       boost::algorithm::join(local_args," ");
-    std::cout << echo_str << std::endl;
+    mkt::out().stream() << echo_str << std::endl;
   }
 
   void help(const mkt::argument_vector& args)
@@ -88,23 +89,21 @@ namespace
     mkt::argument_vector prog_args = mkt::argv();
     std::string prog_name = !prog_args.empty() ? prog_args[0] : "mkt";
 
-    cout << "Version: " << mkt::version() << endl;
-    cout << "Usage: " << prog_name << " <command> <command args>" << endl << endl;
+    mkt::out().stream() << "Version: " << mkt::version() << endl;
+    mkt::out().stream() << "Usage: " << prog_name << " <command> <command args>" << endl << endl;
     BOOST_FOREACH(mkt::command_map::value_type& cmd, _commands)
       {
-        cout << " - " << cmd.first << endl;
-        cout << cmd.second.get<1>() << endl << endl;
+        mkt::out().stream() << " - " << cmd.first << endl;
+        mkt::out().stream() << cmd.second.get<1>() << endl << endl;
       }
   }
 
-  void hello(const mkt::argument_vector& args)
+  void has_var(const mkt::argument_vector& args)
   {
-    using namespace std;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-
-    if(args.size()<2) cout << "Hello, world!" << endl;
-    else if(args.size()==2) cout << "Hello, " << args[1] << endl;
-    else throw mkt::command_error("Too many arguments.");
+    if(args.size()<2) 
+      throw mkt::command_error("Missing variable argument.");
+    mkt::out().stream() << (mkt::has_var(args[1]) ? "true" : "false") << std::endl;
   }
 
   void interrupt(const mkt::argument_vector& args)
@@ -192,7 +191,6 @@ namespace
       }
   }
 
-  //TODO: check for # comments
   void file(const mkt::argument_vector& args)
   {
     using namespace std;
@@ -208,35 +206,52 @@ namespace
   }
   
   //commands TODO:
-  //pinger - repeat a command
-  //url - read commands from a url
-  //set/unset map key value pairs, use $ to replace a var key declaration in a command with it's value from the variable map
-  //alias - give a name to a command so you can refer to an argument vector by a single name
-  //list_thread_ids
-  //list map keys
-  //find key
-  //remove key
-  //save/restore map to/from file (or remote resource?)
+  //repeat - repeat a command
+  //notify - report variable changes to every host:port in a comma separated list
+  //read url into variable
+  //read file into variable
+  //run - commands from variable, run embedded lua program and store it's console output into a variable
+  //write output to file (or remote resource?)
   //current_time
 
+  //use muparser for math expression evaluation
   //output function - figure out best way to pipe output from server commands to local commands
 
   void list_threads(const mkt::argument_vector& args)
   {
+    using namespace std;
+    using namespace boost;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     mkt::thread_map tm = mkt::threads();
-    BOOST_FOREACH(mkt::thread_map::value_type& cur, tm)
-      std::cout << cur.first << std::endl;
-  }
+    bool expand_info = false;
 
-  void list_vars(const mkt::argument_vector& args)
-  {
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    mkt::argument_vector vars = mkt::list_vars();
-    BOOST_FOREACH(const std::string& cur_var, vars)
-      {
-        std::cout << cur_var << std::endl;
-      }
+    //check for expand_info keyword after command arg
+    if(args.size()>=2 && args[1]=="expand_info")
+      expand_info = true;
+    
+    BOOST_FOREACH(mkt::thread_map::value_type& cur, tm)
+      if(cur.second)
+        {
+          string ti = mkt::get_thread_info(cur.first);
+
+          if(!expand_info)
+            {
+              //captures most function looking strings as output by BOOST_CURRENT_FUNCTION
+              regex expr("(\\S+\\(?\\W*\\)?)\\((.*)\\)");
+              match_results<string::iterator> what;
+              match_flag_type flags = match_default;
+              try
+                {
+                  if(regex_search(ti.begin(), ti.end(), what, expr, flags))
+                    ti = string(what[1]);
+                }
+              catch(...){}
+            }
+
+          mkt::out().stream() << cur.first << " " 
+                    << cur.second->get_id() << " " 
+                    << ti << endl;
+        }
   }
 
 #ifdef MKT_USING_XMLRPC
@@ -244,7 +259,7 @@ namespace
   {
     using namespace std;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    cout << mkt::get_local_ip_address() << endl;
+    mkt::out().stream() << mkt::get_local_ip_address() << endl;
   }
 
   void remote(const mkt::argument_vector& args)
@@ -259,6 +274,8 @@ namespace
     local_args.erase(local_args.begin());
 
     int port = 31337;
+    //look for port keyword
+    //TODO: support ':' host/port separator
     if(local_args[0] == "port")
       {
         local_args.erase(local_args.begin());
@@ -275,9 +292,18 @@ namespace
   void set(const mkt::argument_vector& args)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    if(args.size()<3)
-      throw mkt::command_error("Missing arguments for set");
-    mkt::var(args[1], args[2]);
+    if(args.size() == 1) //just print all variables
+      {
+        mkt::argument_vector vars = mkt::list_vars();
+        BOOST_FOREACH(const std::string& cur_var, vars)
+          {
+            mkt::out().stream() << "set " << cur_var << " \"" << mkt::var(cur_var) << "\"" << std::endl;
+          }
+      }
+    else if(args.size() == 2)
+      mkt::var(args[1]); //create an empty variable
+    else
+      mkt::var(args[1], args[2]); //actually do an assignment operation
   }
 
   void sleep(const mkt::argument_vector& args)
@@ -330,11 +356,10 @@ namespace
       add_command("file", file,
                   "file <file path> - \n"
                   "Executes commands listed in a file, line by line sequentially.");
-      add_command("hello", hello, "Prints hello world.");
+      add_command("has_var", has_var, "Returns true or false whether the variable exists or not.");
       add_command("help", help, "Prints command list.");
       add_command("interrupt", interrupt, "Interrupts a running thread.");
       add_command("threads", list_threads, "Lists running threads by name.");
-      add_command("list_vars", list_vars, "Lists variables in the system.");
 #ifdef MKT_USING_XMLRPC
       add_command("local_ip", local_ip, 
                   "Prints the local ip address of the default interface.");
@@ -349,7 +374,8 @@ namespace
       add_command("server", server, 
                   "server <port>\nStart an xmlrpc server at the specified port.");
 #endif
-      add_command("set", set, "set <varname> <value>\nSets a variable to the value specified.");
+      add_command("set", set, "set [<varname> <value>]\n"
+                  "Sets a variable to the value specified.  If none, prints all variables in the system.");
       add_command("sleep", sleep, "sleep <milliseconds>\nSleep for the time specified.");
       add_command("unset", unset, "unset <varname>\nRemoves a variable from the system.");
                   
@@ -448,23 +474,8 @@ namespace mkt
     using namespace boost::algorithm;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
 
-    argument_vector local_args = args;
-
-    //expand all occurances of $<varname> with the value of that variable
-    BOOST_FOREACH(std::string& potential_varname, local_args)
-      {
-        trim(potential_varname);
-        if(!potential_varname.empty() &&
-           potential_varname[0]=='$')
-          {
-            std::string rm_dolla = potential_varname;
-            rm_dolla.erase(rm_dolla.begin());
-            if(has_var(rm_dolla))
-              potential_varname = var(rm_dolla); //do the expansion
-            else throw system_error(str(format("Invalid variable %1%")
-                                        % rm_dolla));
-          }
-      }
+    argument_vector local_args = 
+      split_vars(expand_vars(args));
 
     command cmd;
     {
@@ -840,12 +851,13 @@ namespace mkt
       {
         try
           {
-            std::cout << BOOST_CURRENT_FUNCTION
+            mkt::out().stream() << BOOST_CURRENT_FUNCTION
                       << " :: "
                       << "waiting for thread " << val.first
                       << std::endl;
             
-            val.second->join();
+            if(val.second)
+              val.second->join();
           }
         catch(boost::thread_interrupted&) {}
       }
@@ -859,10 +871,15 @@ namespace mkt
     boost::this_thread::sleep( boost::posix_time::milliseconds(ms) );
   }
 
-  std::string var(const std::string& varname)
+  std::string var(const std::string& varname, bool create)
   {
-    boost::mutex::scoped_lock lock(_var_map_mutex);
-    return _var_map[varname];
+    if(!create && !has_var(varname))
+      throw system_error(boost::str(boost::format("Invalid variable %1%")
+                                    % varname));
+    {
+      boost::mutex::scoped_lock lock(_var_map_mutex);    
+      return _var_map[varname];
+    }
   }
 
   void var(const std::string& varname, const std::string& val)
@@ -904,8 +921,105 @@ namespace mkt
       {
         std::string cur_varname = cur.first;
         boost::algorithm::trim(cur_varname);
-        vars.push_back("$" + cur_varname);
+        vars.push_back(cur_varname);
       }
     return vars;
+  }
+
+  argument_vector expand_vars(const argument_vector& args)
+  {
+    using namespace std;
+    using namespace boost;
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    argument_vector local_args(args);
+
+    boost::array<regex, 2> exprs = 
+      { 
+        regex("\\W*\\$(\\w+)\\W*"), 
+        regex("\\$\\{(\\w+)\\}") 
+      };
+
+    BOOST_FOREACH(string& arg, local_args)
+      {
+        BOOST_FOREACH(regex& expr, exprs)
+          {
+            match_results<string::iterator> what;
+            match_flag_type flags = match_default;
+            try
+              {
+                if(regex_search(arg.begin(), arg.end(), what, expr, flags))
+                  arg = var(string(what[1])); //do the expansion
+              }
+            catch(...){}
+          }
+      }
+
+    return local_args;
+  }
+
+  argument_vector split_vars(const argument_vector& args)
+  {
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    argument_vector local_args(args);
+
+    //TODO: look for special keyword 'split' and split the argument right afterward into an argument
+    //vector and add it to the overall vector.  This way variables that represent commands can be split
+    //into an argument vector and executed.
+
+    return local_args;
+  }
+
+  void echo(const std::string& str)
+  {
+    using namespace std;
+    using namespace boost;
+    using namespace boost::algorithm;
+
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    const string quiet_varname("__quiet");
+    const string remote_echo_varname("__remote_echo");
+    bool quiet = false;
+    if(has_var(quiet_varname))
+      {
+        if(var(quiet_varname)=="true")
+          quiet = true;
+        else if(var(quiet_varname)=="false")
+          quiet = false;
+        else throw system_error(boost::str(format("Invalid value for __quiet: %1%")
+                                           % var(quiet_varname)));
+      }
+    
+    if(!quiet) cout << str;
+
+    if(has_var(remote_echo_varname))
+      {
+        string remote_echo_value = var(remote_echo_varname);
+        mkt::argument_vector remote_servers;
+        split(remote_servers, remote_echo_value, is_any_of(","), token_compress_on);
+
+        //execute an echo with the specified string on each host listed
+        BOOST_FOREACH(string& remote_server, remote_servers)
+          {
+            trim(remote_server); //get rid of whitespace between ',' chars
+            mkt::argument_vector remote_host_components;
+            split(remote_host_components, remote_server,
+                  is_any_of(":"), token_compress_on);
+            if(remote_host_components.empty()) continue;
+            int port = default_port();
+            std::string host = remote_host_components[0];
+            if(remote_host_components.size()>=2)
+              port = lexical_cast<int>(remote_host_components[1]);
+
+            mkt::argument_vector launch_remote_echo_args;
+            launch_remote_echo_args.push_back("async");
+            launch_remote_echo_args.push_back("remote");
+            launch_remote_echo_args.push_back(host);
+            launch_remote_echo_args.push_back("port");
+            launch_remote_echo_args.push_back(lexical_cast<string>(port));
+            launch_remote_echo_args.push_back("echo");
+            launch_remote_echo_args.push_back(str);
+            mkt::exec(launch_remote_echo_args);
+          }
+      }
   }
 }

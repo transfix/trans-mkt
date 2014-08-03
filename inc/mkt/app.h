@@ -12,11 +12,15 @@
 #include <boost/thread.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/current_function.hpp>
+#include <boost/iostreams/device/back_inserter.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
 
 #include <string>
 #include <vector>
 #include <map>
 #include <iostream>
+#include <iomanip>
+#include <strstream>
 
 namespace mkt
 {
@@ -129,7 +133,7 @@ namespace mkt
             thread_feedback tf(BOOST_CURRENT_FUNCTION);
             _t();
           }
-        catch(boost::thread_interrupted&)
+        catch(...)
           {
             //TODO: log this event...
           }
@@ -171,14 +175,43 @@ namespace mkt
   void sleep(int64 ms);
 
   /*
-   * Variable map
+   * Variable API
    */
   typedef std::map<std::string, std::string> variable_map;
-  std::string var(const std::string& varname);
+  std::string var(const std::string& varname, bool create = true);
   void var(const std::string& varname, const std::string& val);
   void unset_var(const std::string& varname);
   bool has_var(const std::string& varname);
   argument_vector list_vars();
+  //expands variable names to their values
+  argument_vector expand_vars(const argument_vector& args);
+
+  //splits arguments with spaces into an argument_vector and replaces that argument
+  //with the vector.  The argument after a keyword 'split' gets split in this way.
+  argument_vector split_vars(const argument_vector& args);
+
+  /*
+   * Log
+   */
+  //writes string to console and any mkt xmlrpc servers
+  //listed in the __remote_echo system variable as a comma separate list of the form:
+  // server0:31337, server1:31338, server2:31339
+  //Local console output surpressed if __quiet is set to true.
+  void echo(const std::string& str);
+
+  class out
+  {
+  public:
+    out() : 
+      _out(boost::iostreams::back_inserter(_result)) {}
+    ~out() { _out.flush(); echo(_result); }
+    boost::iostreams::filtering_ostream& stream() { return _out; }
+  private:
+    std::string _result;
+    boost::iostreams::filtering_ostream _out;
+  };
+
+  
 }
 
 #endif

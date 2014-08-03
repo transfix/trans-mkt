@@ -67,6 +67,13 @@ namespace XmlRpc {
     //!  @param uri  An optional string to be sent as the URI in the HTTP GET header
     XmlRpcClient(const char* host, int port, const char* uri=0);
 
+    //! Construct a client to connect to the server at the specified host:port address
+    //!  @param host    The name of the remote machine hosting the server
+    //!  @param port    The port on the remote machine where the server is listening
+    //!  @param msTime  Connection timeout.
+    //!  @param uri     An optional string to be sent as the URI in the HTTP GET header
+    XmlRpcClient(const char* host, int port, double msTime, const char* uri=0);
+
     //! Destructor
     virtual ~XmlRpcClient();
 
@@ -143,6 +150,8 @@ namespace XmlRpc {
     // Event dispatcher
     XmlRpcDispatch _disp;
 
+    // Timeout for work
+    double _msTime;
   };	// class XmlRpcClient
 
 }	// namespace XmlRpc

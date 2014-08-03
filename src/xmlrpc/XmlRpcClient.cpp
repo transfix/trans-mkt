@@ -63,11 +63,30 @@ XmlRpcClient::XmlRpcClient(const char* host, int port, const char* uri/*=0*/)
   _connectionState = NO_CONNECTION;
   _executing = false;
   _eof = false;
+  _msTime = -1.0;
 
   // Default to keeping the connection open until an explicit close is done
   setKeepOpen();
 }
 
+XmlRpcClient::XmlRpcClient(const char* host, int port, double msTime, const char* uri/*=0*/)
+{
+  XmlRpcUtil::log(1, "XmlRpcClient new client: host %s, port %d.", host, port);
+
+  _host = host;
+  _port = port;
+  if (uri)
+    _uri = uri;
+  else
+    _uri = "/RPC2";
+  _connectionState = NO_CONNECTION;
+  _executing = false;
+  _eof = false;
+  _msTime = msTime;
+
+  // Default to keeping the connection open until an explicit close is done
+  setKeepOpen();
+}
 
 XmlRpcClient::~XmlRpcClient()
 {
@@ -120,8 +139,8 @@ XmlRpcClient::execute(const char* method, XmlRpcValue const& params, XmlRpcValue
     return false;
 
   result.clear();
-  double msTime = -1.0;   // Process until exit is called
-  _disp.work(msTime);
+  //double msTime = -1.0;   // Process until exit is called
+  _disp.work(_msTime);
 
   if (_connectionState != IDLE || ! parseResponse(result))
     return false;

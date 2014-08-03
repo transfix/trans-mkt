@@ -40,6 +40,8 @@ namespace mkt
     return addr.to_string();
   } 
 
+  int default_port() { return 31337; }
+
   MKT_DEF_EXCEPTION(xmlrpc_server_error);
   MKT_DEF_EXCEPTION(xmlrpc_server_error_listen);
   MKT_DEF_EXCEPTION(xmlrpc_server_terminate);
@@ -68,20 +70,20 @@ namespace mkt
       using namespace boost;
       thread_info ti(BOOST_CURRENT_FUNCTION);
 
+      //instantiate the server and its methods.
+      XmlRpc::XmlRpcServer s;
+      mkt_exec mkt_exec_method(&s);
+      
+      //Start the server, and run it indefinitely.
+      //For some reason, time_from_string and boost_regex creashes if the main thread is waiting in atexit().
+      //So, make sure main() has a cvcapp.wait_for_threads() call at the end.
+      XmlRpc::setVerbosity(0);
+      if(!s.bindAndListen(_port)) 
+        throw xmlrpc_server_error_listen(str(format("could not bind to port %d") % _port));
+      s.enableIntrospection(true);
+
       try
         {
-          //instantiate the server and its methods.
-          XmlRpc::XmlRpcServer s;
-          mkt_exec mkt_exec_method(&s);
-
-          //Start the server, and run it indefinitely.
-          //For some reason, time_from_string and boost_regex creashes if the main thread is waiting in atexit().
-          //So, make sure main() has a cvcapp.wait_for_threads() call at the end.
-          XmlRpc::setVerbosity(0);
-          if(!s.bindAndListen(_port)) 
-            throw xmlrpc_server_error_listen(str(format("could not bind to port %d") % _port));
-          s.enableIntrospection(true);
-
           //loop with interruption points so we can gracefully terminate
           while(1)
             {
@@ -91,7 +93,8 @@ namespace mkt
         }
       catch(boost::thread_interrupted&)
         {
-          std::cout << "xmlrpc_server_thread interrupted" << std::endl;
+          mkt::out().stream() << "xmlrpc_server_thread interrupted" << std::endl;
+          s.shutdown();
         }
     }
   private:
@@ -117,7 +120,7 @@ namespace mkt
     catch(mkt::exception& e)
       {
         if(!e.what_str().empty()) 
-          cout << "Error: " << e.what_str() << endl;
+          mkt::out().stream() << "Error: " << e.what_str() << endl;
         result[0] = std::string("error");
       }
   }
@@ -132,7 +135,7 @@ namespace mkt
 
   void exec_remote(const argument_vector& args, std::string host, int port)
   {
-    XmlRpc::XmlRpcClient c(host.c_str(),port);
+    XmlRpc::XmlRpcClient c(host.c_str(),port,2.0);
     XmlRpc::XmlRpcValue params, result;
     std::string args_str = boost::algorithm::join(args, " ");
     params[0] = args_str;
