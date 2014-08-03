@@ -49,9 +49,9 @@ namespace mkt
   //after being the command's arguments.
   void exec(const argument_vector& args);
 
-  //Executes commands listed in a file.  If parallel is true, commands are executed
-  //in separate threads.
-  void exec_file(const std::string& filename, bool parallel = false);
+  //Executes commands listed in a file where the first argument is the filename. 
+  //If parallel is true, commands are executed in separate threads.
+  void exec_file(const argument_vector& args, bool parallel = false);
 
   //splits a string into an argument vector
   argument_vector split(const std::string& args);
@@ -199,6 +199,8 @@ namespace mkt
   //Local console output surpressed if __quiet is set to true.
   void echo(const std::string& str);
 
+  //use this class like the following:
+  // mkt::out().stream() << "Hello, World!";
   class out
   {
   public:

@@ -56,7 +56,6 @@ namespace
                       wait);
   }
 
-  //TODO: check for # comments
   void async_file(const mkt::argument_vector& args)
   {
     using namespace std;
@@ -64,11 +63,10 @@ namespace
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
 
     mkt::argument_vector local_args = args;
-    local_args.erase(local_args.begin());
+    local_args.erase(local_args.begin()); //remove command string
     if(local_args.empty()) throw mkt::command_error("Missing file name.");
 
-    string filename = local_args[0];
-    mkt::exec_file(filename, true);
+    mkt::exec_file(local_args, true);
   }
 
   void echo(const mkt::argument_vector& args)
@@ -121,6 +119,34 @@ namespace
     mkt::thread_ptr thread = mkt::threads(thread_name);
     if(thread) thread->interrupt();
     else throw mkt::system_error("Null thread pointer.");
+  }
+
+  void repeat(const mkt::argument_vector& args)
+  {
+    using namespace std;
+    using namespace boost;
+    using namespace boost::algorithm;
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    if(args.size()<3) throw mkt::command_error("Missing arguments.");
+
+    mkt::argument_vector local_args = args;
+    local_args.erase(local_args.begin()); //remove the command string
+    trim(local_args[0]);
+    int times = -1;
+    try
+      {
+        times = lexical_cast<int>(local_args[0]);
+      }
+    catch(boost::bad_lexical_cast&)
+      {
+        //invalid <times> string
+        throw mkt::command_error("Invalid argument for repeat.");
+      }
+    local_args.erase(local_args.begin()); //remove <times> string
+
+    //now repeat...
+    for(int i = 0; i < times; i++)
+      mkt::exec(local_args);
   }
 
   void serial(const mkt::argument_vector& args)
@@ -198,16 +224,16 @@ namespace
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
 
     mkt::argument_vector local_args = args;
-    local_args.erase(local_args.begin());
+    local_args.erase(local_args.begin()); //remove command string
     if(local_args.empty()) throw mkt::command_error("Missing file name.");
 
-    string filename = local_args[0];
-    mkt::exec_file(filename);
+    mkt::exec_file(local_args);
   }
   
   //commands TODO:
-  //repeat - repeat a command
-  //notify - report variable changes to every host:port in a comma separated list
+  //macro - command list, creates a new command. like serial but it doesnt call.  uses 'then' keyword.
+  //        $argc represents number of macro arguments when called, and $argv_0000 ... $argv_9999 represents the args 
+  //sync - report variable changes to every host:port in a comma separated list
   //read url into variable
   //read file into variable
   //run - commands from variable, run embedded lua program and store it's console output into a variable
@@ -215,7 +241,6 @@ namespace
   //current_time
 
   //use muparser for math expression evaluation
-  //output function - figure out best way to pipe output from server commands to local commands
 
   void list_threads(const mkt::argument_vector& args)
   {
@@ -369,6 +394,7 @@ namespace
                   "remote <host> [port <port>] <command> -\n"
                   "Executes a command on the specified host.");
 #endif
+      add_command("repeat", repeat, "repeat <num times> <command> -\nRepeat command.");
       add_command("serial", serial, "Execute commands serially separated by a 'then' keyword.");
 #ifdef MKT_USING_XMLRPC
       add_command("server", server, 
@@ -489,13 +515,16 @@ namespace mkt
     cmd.get<0>()(local_args);
   }
 
-  void exec_file(const std::string& filename, bool parallel)
+  void exec_file(const argument_vector& file_args, bool parallel)
   {
     using namespace std;
     using namespace boost;
     using namespace boost::algorithm;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
 
+    if(file_args.empty()) throw mkt::system_error("Missing filename.");
+    
+    string filename = file_args[0];
     ifstream inf(filename.c_str());
     if(!inf) throw mkt::file_error("Could not open " + filename);
 
@@ -574,9 +603,28 @@ namespace mkt
 
   void argv(int argc, char **argv)
   {
+    using namespace boost;
     mkt::argument_vector args;
+
+    //set main_argc system variable
+    argument_vector set_args;
+    set_args.push_back("set");
+    set_args.push_back("main_argc");
+    set_args.push_back(lexical_cast<std::string>(argc));
+    mkt::exec(set_args);
+    
     for(int i = 0; i < argc; i++)
-      args.push_back(argv[i]);
+      {
+        args.push_back(argv[i]);
+
+        //set main_argv system variables
+        argument_vector set_args;
+        set_args.push_back("set");
+        set_args.push_back(str(format("main_argv_%1%") % i));
+        set_args.push_back(argv[i]);
+        mkt::exec(set_args);
+      }
+
     mkt::argv(args);
   }
 
