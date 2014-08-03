@@ -48,7 +48,10 @@ namespace
     //check if the next argument is 'wait.'  If so, set the wait flag true
     bool wait = false;
     if(local_args[0] == "wait")
-      wait = true;
+      {
+        wait = true;
+        local_args.erase(local_args.begin()); //remove "wait"
+      }
     
     std::string local_args_str = boost::join(local_args," ");
     mkt::start_thread(local_args_str,
@@ -181,6 +184,79 @@ namespace
       mkt::exec(cur);
   }
 
+  //Creates a command that syncs a variable on a remote host with the current value here
+  class syncer
+  {
+  public:
+    syncer(const std::string& v, 
+           const std::string& h)
+      : _varname(v), _host(h) {}
+    void operator()(const std::string& in_var)
+    {
+      using namespace boost::algorithm;
+      if(_varname != in_var) return;
+      
+      std::string val = mkt::var(in_var);
+
+      //do the remote var syncronization as an asyncronous command
+      mkt::argument_vector remote_set_args;
+      remote_set_args.push_back("async");
+      remote_set_args.push_back("wait"); //TODO: wait up to a certain amount of threads then start interrupting
+      remote_set_args.push_back("remote");
+
+      trim(_host);
+      mkt::argument_vector host_components;
+      split(host_components, _host, is_any_of(":"), token_compress_on);
+      if(host_components.empty()) throw mkt::system_error("Invalid host.");
+
+      remote_set_args.push_back(host_components[0]);
+      if(host_components.size()>=2)
+        {
+          remote_set_args.push_back("port");
+          remote_set_args.push_back(host_components[1]);
+        }
+ 
+      remote_set_args.push_back("set");
+      remote_set_args.push_back(in_var);
+      remote_set_args.push_back(val);
+      mkt::exec(remote_set_args);
+    }
+  private:
+    std::string _varname;
+    std::string _host;
+  };
+
+  void sync_var(const mkt::argument_vector& args)
+  {
+    using namespace std;
+    using namespace boost;
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+
+    if(args.size() < 3) throw mkt::command_error("Missing arguments");
+    
+    string varname = args[1];
+    string remote_servers_string = args[2];
+
+    mkt::argument_vector remote_servers;
+    split(remote_servers, remote_servers_string, is_any_of(","), token_compress_on);
+    
+    //execute an echo with the specified string on each host listed
+    BOOST_FOREACH(string& remote_server, remote_servers)
+      {
+        trim(remote_server); //get rid of whitespace between ',' chars
+        mkt::argument_vector remote_host_components;
+        split(remote_host_components, remote_server,
+              is_any_of(":"), token_compress_on);
+        if(remote_host_components.empty()) continue;
+        int port = mkt::default_port();
+        std::string host = remote_host_components[0];
+        if(remote_host_components.size()>=2)
+          port = lexical_cast<int>(remote_host_components[1]);
+
+        mkt::var_changed.connect(syncer(varname, remote_server));
+      }    
+  }
+
   void parallel(const mkt::argument_vector& args)
   {
     using namespace std;
@@ -234,7 +310,7 @@ namespace
   //macro - command list, creates a new command. like serial but it doesnt call.  uses 'then' keyword.
   //        $argc represents number of macro arguments when called, and $argv_0000 ... $argv_9999 represents the args 
   //stack - keep a variable stack, add commands to read from the stack.  use $0...$n for arguments, make them thread private
-  //sync - report variable changes to every host:port in a comma separated list
+  //sync_var - report variable changes to every host:port in a comma separated list
   //read url into variable
   //read file into variable
   //run - commands from variable, run embedded lua program and store it's console output into a variable
@@ -404,6 +480,8 @@ namespace
       add_command("set", set, "set [<varname> <value>]\n"
                   "Sets a variable to the value specified.  If none, prints all variables in the system.");
       add_command("sleep", sleep, "sleep <milliseconds>\nSleep for the time specified.");
+      add_command("sync_var", sync_var, "sync_var <varname> <remote host comma separated list> -\n"
+                  "Keeps variables syncronized across hosts.");
       add_command("unset", unset, "unset <varname>\nRemoves a variable from the system.");
                   
     }
@@ -925,29 +1003,43 @@ namespace mkt
     if(!create && !has_var(varname))
       throw system_error(boost::str(boost::format("Invalid variable %1%")
                                     % varname));
+
+    bool creating = false;
+    std::string val;
     {
-      boost::mutex::scoped_lock lock(_var_map_mutex);    
-      return _var_map[varname];
+      boost::mutex::scoped_lock lock(_var_map_mutex);
+      if(_var_map.find(varname)==_var_map.end()) creating = true;
+      val = _var_map[varname];
     }
+    
+    if(creating) var_changed(varname);
+    return val;
   }
 
   void var(const std::string& varname, const std::string& val)
   {
     using namespace boost::algorithm;
-    boost::mutex::scoped_lock lock(_var_map_mutex);
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    std::string local_varname(varname); trim(local_varname);
-    std::string local_val(val); trim(local_val);
-    _var_map[local_varname] = local_val;
+    {
+      boost::mutex::scoped_lock lock(_var_map_mutex);
+      std::string local_varname(varname); trim(local_varname);
+      std::string local_val(val); trim(local_val);
+      if(_var_map[local_varname] == local_val) return; //nothing to do
+      _var_map[local_varname] = local_val;
+    }
+    var_changed(varname);
   }
 
   void unset_var(const std::string& varname)
   {
     using namespace boost::algorithm;
-    boost::mutex::scoped_lock lock(_var_map_mutex);
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    std::string local_varname(varname); trim(local_varname);
-    _var_map.erase(local_varname);
+    {
+      boost::mutex::scoped_lock lock(_var_map_mutex);
+      std::string local_varname(varname); trim(local_varname);
+      _var_map.erase(local_varname);
+    }
+    var_changed(varname);
   }
 
   bool has_var(const std::string& varname)
@@ -974,6 +1066,8 @@ namespace mkt
       }
     return vars;
   }
+
+  map_change_signal var_changed;
 
   argument_vector expand_vars(const argument_vector& args)
   {

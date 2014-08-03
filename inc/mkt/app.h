@@ -183,6 +183,8 @@ namespace mkt
   void unset_var(const std::string& varname);
   bool has_var(const std::string& varname);
   argument_vector list_vars();
+  extern map_change_signal var_changed;
+
   //expands variable names to their values
   argument_vector expand_vars(const argument_vector& args);
 
