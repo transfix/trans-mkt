@@ -2,7 +2,12 @@
 #include <mkt/exceptions.h>
 
 #ifdef MKT_INTERACTIVE
-#include <editline/readline.h>
+//#include <editline/readline.h>
+#ifdef __WINDOWS__
+  #include "../../inc/editline/readline.h"
+#else
+  #include <editline/readline.h>
+#endif
 #endif
 
 #include <boost/current_function.hpp>

@@ -4,7 +4,7 @@ option(MKT_INTERACTIVE "If this is enabled, mkt will enable an interactive promp
 mark_as_advanced(MKT_INTERACTIVE)
 if(MKT_INTERACTIVE)
   if(WIN32)
-    add_subdirectory(editline)
+    add_subdirectory(editline_win)
   endif(WIN32)
 endif(MKT_INTERACTIVE)
 

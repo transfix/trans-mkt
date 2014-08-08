@@ -47,7 +47,17 @@ if(MKT_INTERACTIVE)
   if(WIN32)
     set(MKT_LINK_LIBS ${MKT_LINK_LIBS} editline)
   else(WIN32)
-    message("Interactive mode not supported outside of Windows yet.")
+    #message("Interactive mode not supported outside of Windows yet.")
+    #set(MKT_INTERACTIVE OFF)
+    
+    #use external libedit if available
+    find_package(libedit)
+    if(LIBEDIT_FOUND)
+      set(MKT_LINK_LIBS ${MKT_LINK_LIBS} ${LIBEDIT_LIBRARY})
+    else(LIBEDIT_FOUND)
+      message("Missing libedit, not supporting interactive mode")
+      set(MKT_INTERACTIVE OFF)
+    endif(LIBEDIT_FOUND)
   endif(WIN32)
 endif(MKT_INTERACTIVE)
 
