@@ -2,9 +2,8 @@
 #include <mkt/exceptions.h>
 
 #ifdef MKT_INTERACTIVE
-//#include <editline/readline.h>
 #ifdef __WINDOWS__
-  #include "../../inc/editline/readline.h"
+#include <editline_win/readline.h>
 #else
   #include <editline/readline.h>
 #endif
