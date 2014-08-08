@@ -26,5 +26,5 @@ add_library(xmlrpc ${SOURCE_FILES} ${INCLUDE_FILES})
 
 #Windows requires wsock32
 if(WIN32)
-  target_link_libraries(xmlrpc wsock32)
+  target_link_libraries(xmlrpc ws2_32)
 endif(WIN32)

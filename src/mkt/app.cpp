@@ -221,6 +221,15 @@ namespace
       remote_set_args.push_back(val);
       mkt::exec(remote_set_args);
     }
+
+    bool operator==(const syncer& rhs) const
+    {
+      if(&rhs == this) return true;
+      return 
+        (_varname == rhs._varname) &&
+        (_host == rhs._host);
+    }
+
   private:
     std::string _varname;
     std::string _host;
@@ -310,14 +319,15 @@ namespace
   //macro - command list, creates a new command. like serial but it doesnt call.  uses 'then' keyword.
   //        $argc represents number of macro arguments when called, and $argv_0000 ... $argv_9999 represents the args 
   //stack - keep a variable stack, add commands to read from the stack.  use $0...$n for arguments, make them thread private
-  //sync_var - report variable changes to every host:port in a comma separated list
+  //handle string sourrounded by `backticks` as a shell command who's output ends up as the string contents
   //read url into variable
   //read file into variable
-  //run - commands from variable, run embedded lua program and store it's console output into a variable
+  //eval - commands from variable, run embedded lua program and store it's console output into a variable
   //write output to file (or remote resource?)
   //current_time
 
   //use muparser for math expression evaluation
+  //cpp-netlib for http requests & http server
 
   void list_threads(const mkt::argument_vector& args)
   {
@@ -438,6 +448,37 @@ namespace
     mkt::unset_var(args[1]);
   }
 
+  void unsync_var(const mkt::argument_vector& args)
+  {
+    using namespace std;
+    using namespace boost;
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+
+    if(args.size() < 3) throw mkt::command_error("Missing arguments");
+    
+    string varname = args[1];
+    string remote_servers_string = args[2];
+
+    mkt::argument_vector remote_servers;
+    split(remote_servers, remote_servers_string, is_any_of(","), token_compress_on);
+    
+    //disconnect the syncer associated with each remote host that matches
+    BOOST_FOREACH(string& remote_server, remote_servers)
+      {
+        trim(remote_server); //get rid of whitespace between ',' chars
+        mkt::argument_vector remote_host_components;
+        split(remote_host_components, remote_server,
+              is_any_of(":"), token_compress_on);
+        if(remote_host_components.empty()) continue;
+        int port = mkt::default_port();
+        std::string host = remote_host_components[0];
+        if(remote_host_components.size()>=2)
+          port = lexical_cast<int>(remote_host_components[1]);
+
+        mkt::var_changed.disconnect(syncer(varname, remote_server));
+      }
+  }
+
   class init_commands
   {
   public:
@@ -483,6 +524,8 @@ namespace
       add_command("sync_var", sync_var, "sync_var <varname> <remote host comma separated list> -\n"
                   "Keeps variables syncronized across hosts.");
       add_command("unset", unset, "unset <varname>\nRemoves a variable from the system.");
+      add_command("unsync_var", unsync_var, "unsync_var <varname> <remote host comma separated list> -\n"
+                  "Disconnects variable syncronization across hosts.");
                   
     }
   } init_commands_static_init;

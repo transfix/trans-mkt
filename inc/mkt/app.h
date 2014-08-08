@@ -20,7 +20,6 @@
 #include <map>
 #include <iostream>
 #include <iomanip>
-#include <strstream>
 
 namespace mkt
 {
