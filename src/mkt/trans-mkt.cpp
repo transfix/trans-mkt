@@ -15,38 +15,41 @@
 #include <iostream>
 #include <cstdlib>
 
-void do_help()
+namespace
 {
-  mkt::exec(mkt::argument_vector(1,"help"));
-}
+  void do_help()
+  {
+    mkt::exec(mkt::argument_vector(1,"help"));
+  }
 
 #ifdef MKT_INTERACTIVE
-void interactive()
-{
-  using namespace std;
-  char *line;
-  while((line = readline("mkt> ")))
-    {
-      std::string str_line(line);
-      add_history(line);
-      free(line);
+  void interactive()
+  {
+    using namespace std;
+    char *line;
+    while((line = readline("mkt> ")))
+      {
+        std::string str_line(line);
+        add_history(line);
+        free(line);
 
-      if(str_line == "exit" || str_line == "quit") break;
+        if(str_line == "exit" || str_line == "quit") break;
 
-      try
-        {
-          mkt::argument_vector args = mkt::split(str_line);
-          if(!args.empty())
-            mkt::exec(args);
-        }
-      catch(mkt::exception& e)
-        {
-          if(!e.what_str().empty()) 
-            cout << "Error: " << e.what_str() << endl;          
-        }
-    }
-}
+        try
+          {
+            mkt::argument_vector args = mkt::split(str_line);
+            if(!args.empty())
+              mkt::exec(args);
+          }
+        catch(mkt::exception& e)
+          {
+            if(!e.what_str().empty()) 
+              cout << "Error: " << e.what_str() << endl;          
+          }
+      }
+  }
 #endif
+}
 
 int main(int argc, char **argv)
 {

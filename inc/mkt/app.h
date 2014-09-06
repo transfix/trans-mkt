@@ -7,13 +7,14 @@
 #include <boost/tuple/tuple.hpp>
 #include <boost/signals2.hpp>
 #include <boost/cstdint.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/thread/xtime.hpp>
 #include <boost/thread.hpp>
+#include <boost/thread/locks.hpp>
+#include <boost/thread/shared_mutex.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/current_function.hpp>
 #include <boost/iostreams/device/back_inserter.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 #include <string>
 #include <vector>
@@ -23,8 +24,12 @@
 
 namespace mkt
 {
-  typedef boost::int64_t  int64;
-  typedef boost::uint64_t uint64;
+  typedef boost::int64_t             int64;
+  typedef boost::uint64_t            uint64;
+  typedef boost::posix_time::ptime   ptime;
+  typedef boost::shared_mutex        mutex;
+  typedef boost::unique_lock<mutex>  unique_lock;
+  typedef boost::shared_lock<mutex>  shared_lock;
 
   //version string
   std::string version();

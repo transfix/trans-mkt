@@ -70,11 +70,16 @@ target_link_libraries(mkt ${MKT_LINK_LIBS})
 add_executable(trans-mkt trans-mkt.cpp)
 target_link_libraries(trans-mkt mkt)
 
+add_executable(trans-orderbook orderbook.cpp)
+target_link_libraries(trans-orderbook mkt)
+
 configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/../../inc/mkt/config.h.cmake ${CMAKE_BINARY_DIR}/inc/mkt/config.h )
 
 if(WIN32)
   file(TO_NATIVE_PATH ${Boost_LIBRARY_DIRS} BOOST_LOCATION)
   file(TO_NATIVE_PATH ${CMAKE_BINARY_DIR} BINARIES_LOCATION)
   configure_file( trans-mkt.bat.cmake ${CMAKE_BINARY_DIR}/trans-mkt.bat )
-  configure_file( vs2012.bat.cmake ${CMAKE_BINARY_DIR}/vs2012.bat )
+  if(MSVC)
+    configure_file( vs2012.bat.cmake ${CMAKE_BINARY_DIR}/vs2012.bat )
+  endif(MSVC)
 endif(WIN32)

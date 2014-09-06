@@ -15,6 +15,8 @@
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/regex.hpp>
 #include <boost/array.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/thread/xtime.hpp>
 
 #include <set>
 #include <iostream>
@@ -33,7 +35,7 @@ namespace mkt
 namespace
 {
   mkt::command_map     _commands;
-  boost::mutex         _commands_lock;
+  mkt::mutex           _commands_lock;
 
   //launches a command in a thread
   void async(const mkt::argument_vector& args)
@@ -534,17 +536,16 @@ namespace
 namespace
 {
   mkt::argument_vector        _av;
-  boost::mutex                _av_lock;
+  mkt::mutex                  _av_lock;
 
   mkt::thread_map             _threads;
   mkt::thread_progress_map    _thread_progress;
   mkt::thread_key_map         _thread_keys;
   mkt::thread_info_map        _thread_info;
-  boost::mutex                _threads_mutex;
+  mkt::mutex                  _threads_mutex;
 
   mkt::variable_map           _var_map;
-  boost::mutex                _var_map_mutex;
-
+  mkt::mutex                  _var_map_mutex;
 
   //This should only be called after we lock the threads mutex
   void update_thread_keys()
@@ -597,19 +598,19 @@ namespace mkt
                    const std::string& desc)
   {
     using namespace boost;
-    mutex::scoped_lock lock(_commands_lock);
+    unique_lock lock(_commands_lock);
     _commands[name] = make_tuple(func, desc);
   }
 
   void remove_command(const std::string& name)
   {
-    boost::mutex::scoped_lock lock(_commands_lock);
+    unique_lock lock(_commands_lock);
     _commands.erase(name);
   }
 
   argument_vector get_commands()
   {
-    boost::mutex::scoped_lock lock(_commands_lock);    
+    unique_lock lock(_commands_lock);    
     argument_vector av;
     BOOST_FOREACH(command_map::value_type& cur, _commands)
       av.push_back(cur.first);
@@ -627,7 +628,7 @@ namespace mkt
 
     command cmd;
     {
-      mutex::scoped_lock lock(_commands_lock);
+      unique_lock lock(_commands_lock);
       if(local_args.empty()) throw command_error("Missing command string");
       std::string cmd_str = local_args[0];
       if(_commands.find(cmd_str)==_commands.end())
@@ -713,13 +714,13 @@ namespace mkt
 
   argument_vector argv()
   {
-    boost::mutex::scoped_lock lock(_av_lock);
+    unique_lock lock(_av_lock);
     return _av;
   }
 
   void argv(const argument_vector& av)
   {
-    boost::mutex::scoped_lock lock(_av_lock);
+    unique_lock lock(_av_lock);
     _av = av;
   }
 
@@ -767,14 +768,14 @@ namespace mkt
   thread_map threads()
   {
     boost::this_thread::interruption_point();
-    boost::mutex::scoped_lock lock(_threads_mutex);
+    unique_lock lock(_threads_mutex);
     return _threads;
   }
 
   thread_ptr threads(const std::string& key)
   {
     boost::this_thread::interruption_point();
-    boost::mutex::scoped_lock lock(_threads_mutex);
+    unique_lock lock(_threads_mutex);
     if(_threads.find(key)!=_threads.end())
       return _threads[key];
     return thread_ptr();
@@ -788,7 +789,7 @@ namespace mkt
       threads(key)->interrupt();
 
     {
-      boost::mutex::scoped_lock lock(_threads_mutex);
+      unique_lock lock(_threads_mutex);
       if(!val)
         _threads.erase(key);
       else
@@ -803,7 +804,7 @@ namespace mkt
   {
     boost::this_thread::interruption_point();
     {
-      boost::mutex::scoped_lock lock(_threads_mutex);
+      unique_lock lock(_threads_mutex);
       
       BOOST_FOREACH(thread_map::value_type t, _threads)
 	if(t.second) t.second->interrupt();
@@ -819,7 +820,7 @@ namespace mkt
   bool has_thread(const std::string& key)
   {
     boost::this_thread::interruption_point();
-    boost::mutex::scoped_lock lock(_threads_mutex);
+    unique_lock lock(_threads_mutex);
     if(_threads.find(key)!=_threads.end())
       return true;
     return false;
@@ -828,7 +829,7 @@ namespace mkt
   double thread_progress(const std::string& key)
   {
     boost::this_thread::interruption_point();
-    boost::mutex::scoped_lock lock(_threads_mutex);
+    unique_lock lock(_threads_mutex);
 
     boost::thread::id tid;
     if(key.empty())
@@ -859,7 +860,7 @@ namespace mkt
 
     bool changed = false;
     {
-      boost::mutex::scoped_lock lock(_threads_mutex);
+      unique_lock lock(_threads_mutex);
       boost::thread::id tid;
 
       if(key.empty())
@@ -886,7 +887,7 @@ namespace mkt
   {
     boost::this_thread::interruption_point();
     {
-      boost::mutex::scoped_lock lock(_threads_mutex);
+      unique_lock lock(_threads_mutex);
 
       boost::thread::id tid;
       if(key.empty())
@@ -906,7 +907,7 @@ namespace mkt
   {
     boost::this_thread::interruption_point();
     {
-      boost::mutex::scoped_lock lock(_threads_mutex);
+      unique_lock lock(_threads_mutex);
       if(_thread_keys.find(boost::this_thread::get_id())!=_thread_keys.end())
         return _thread_keys[boost::this_thread::get_id()];
       else
@@ -935,7 +936,7 @@ namespace mkt
   {
     boost::this_thread::interruption_point();
     {
-      boost::mutex::scoped_lock lock(_threads_mutex);
+      unique_lock lock(_threads_mutex);
 
       boost::thread::id tid;
       if(key.empty())
@@ -955,7 +956,7 @@ namespace mkt
   {
     boost::this_thread::interruption_point();
     {
-      boost::mutex::scoped_lock lock(_threads_mutex);
+      unique_lock lock(_threads_mutex);
       
       boost::thread::id tid;
       if(key.empty())
@@ -1050,7 +1051,7 @@ namespace mkt
     bool creating = false;
     std::string val;
     {
-      boost::mutex::scoped_lock lock(_var_map_mutex);
+      unique_lock lock(_var_map_mutex);
       if(_var_map.find(varname)==_var_map.end()) creating = true;
       val = _var_map[varname];
     }
@@ -1064,7 +1065,7 @@ namespace mkt
     using namespace boost::algorithm;
     thread_info ti(BOOST_CURRENT_FUNCTION);
     {
-      boost::mutex::scoped_lock lock(_var_map_mutex);
+      unique_lock lock(_var_map_mutex);
       std::string local_varname(varname); trim(local_varname);
       std::string local_val(val); trim(local_val);
       if(_var_map[local_varname] == local_val) return; //nothing to do
@@ -1078,7 +1079,7 @@ namespace mkt
     using namespace boost::algorithm;
     thread_info ti(BOOST_CURRENT_FUNCTION);
     {
-      boost::mutex::scoped_lock lock(_var_map_mutex);
+      unique_lock lock(_var_map_mutex);
       std::string local_varname(varname); trim(local_varname);
       _var_map.erase(local_varname);
     }
@@ -1088,7 +1089,7 @@ namespace mkt
   bool has_var(const std::string& varname)
   {
     using namespace boost::algorithm;
-    boost::mutex::scoped_lock lock(_var_map_mutex);
+    unique_lock lock(_var_map_mutex);
     thread_info ti(BOOST_CURRENT_FUNCTION);    
     std::string local_varname(varname); trim(local_varname);
     if(_var_map.find(local_varname)==_var_map.end())
@@ -1098,7 +1099,7 @@ namespace mkt
 
   argument_vector list_vars()
   {
-    boost::mutex::scoped_lock lock(_var_map_mutex);
+    unique_lock lock(_var_map_mutex);
     thread_info ti(BOOST_CURRENT_FUNCTION);
     argument_vector vars;
     BOOST_FOREACH(const variable_map::value_type& cur, _var_map)
