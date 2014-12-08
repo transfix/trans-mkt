@@ -12,6 +12,8 @@ namespace mkt
   void run_xmlrpc_server(int port = 31337);
   void exec_remote(const argument_vector& args,
                    std::string host = "localhost", int port = default_port());
+
+  void do_remote_echo(const std::string& str); //echo function
 }
 
 #endif

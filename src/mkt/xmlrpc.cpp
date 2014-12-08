@@ -8,7 +8,9 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/classification.hpp>
+#include <boost/algorithm/string/trim.hpp>
 #include <boost/asio.hpp>
+#include <boost/foreach.hpp>
 
 #include <iostream>
 
@@ -142,5 +144,45 @@ namespace mkt
     c.execute("mkt_exec", params, result);
     if(result[0] == std::string("error"))
       throw xmlrpc_remote_error("remote error.");
+  }
+
+  //Calls echo on any mkt xmlrpc servers listed in the __remote_echo system variable
+  //as a comma separated list of the form:
+  // server0:31337, server1:31338, server2:31339
+  void do_remote_echo(const std::string& str)
+  {
+    using namespace boost;
+    using namespace boost::algorithm;
+    const std::string remote_echo_varname("__remote_echo");
+    if(mkt::has_var(remote_echo_varname))
+      {
+        std::string remote_echo_value = mkt::var(remote_echo_varname);
+        mkt::argument_vector remote_servers;
+        split(remote_servers, remote_echo_value, is_any_of(","), token_compress_on);
+
+        //execute an echo with the specified string on each host listed
+        BOOST_FOREACH(std::string& remote_server, remote_servers)
+          {
+            trim(remote_server); //get rid of whitespace between ',' chars
+            mkt::argument_vector remote_host_components;
+            split(remote_host_components, remote_server,
+                  is_any_of(":"), token_compress_on);
+            if(remote_host_components.empty()) continue;
+            int port = mkt::default_port();
+            std::string host = remote_host_components[0];
+            if(remote_host_components.size()>=2)
+              port = lexical_cast<int>(remote_host_components[1]);
+
+            mkt::argument_vector launch_remote_echo_args;
+            launch_remote_echo_args.push_back("async");
+            launch_remote_echo_args.push_back("remote");
+            launch_remote_echo_args.push_back(host);
+            launch_remote_echo_args.push_back("port");
+            launch_remote_echo_args.push_back(lexical_cast<std::string>(port));
+            launch_remote_echo_args.push_back("echo");
+            launch_remote_echo_args.push_back(str);
+            mkt::exec(launch_remote_echo_args);
+          }
+      }
   }
 }

@@ -1164,17 +1164,31 @@ namespace mkt
   std::map<std::string, market_ptr>   _markets;
   mutex                               _markets_mutex;
 
-
-  //TODO:
-  //commands:
-  //buy - post a bid limit order
-  //sell - post an ask limit order
-  //
-
   //functions:
   //resolve orderbook - after every change to orderbook, check if any buys match sells
   //if so, execute the transaction changing the respective balances of the market participants
   //involved in the order
+}
+
+//commands related code
+namespace
+{
+  //TODO:
+  //need to figure out I/O situation and how it's related to the simple variable system we have going here...
+
+  //commands:
+  //set_asset_id - create asset with id. if no id argument, get one from system if none yet set, else do nothing
+  //get_asset_id - returns (prints) asset id of specified asset
+  //init_account - create a new account and resets all balances to zero. if no account id is specified, get one from the system
+  //buy - post a bid limit order
+  //sell - post an ask limit order
+  //
+
+  void set_asset_id(const mkt::argument_vector& av)
+  {
+    
+  }
+
 }
 
 namespace

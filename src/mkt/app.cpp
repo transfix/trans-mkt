@@ -27,7 +27,6 @@ namespace mkt
 {
   MKT_DEF_EXCEPTION(async_error);
   MKT_DEF_EXCEPTION(command_error);
-  MKT_DEF_EXCEPTION(system_error);
   MKT_DEF_EXCEPTION(file_error);
 }
 
@@ -187,6 +186,7 @@ namespace
   }
 
   //Creates a command that syncs a variable on a remote host with the current value here
+#ifdef MKT_USING_XMLRPC
   class syncer
   {
   public:
@@ -236,6 +236,7 @@ namespace
     std::string _varname;
     std::string _host;
   };
+#endif
 
   void sync_var(const mkt::argument_vector& args)
   {
@@ -243,6 +244,7 @@ namespace
     using namespace boost;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
 
+#ifdef MKT_USING_XMLRPC
     if(args.size() < 3) throw mkt::command_error("Missing arguments");
     
     string varname = args[1];
@@ -266,6 +268,9 @@ namespace
 
         mkt::var_changed.connect(syncer(varname, remote_server));
       }    
+#else
+    throw mkt::command_error("sync_var unsupported");
+#endif
   }
 
   void parallel(const mkt::argument_vector& args)
@@ -456,6 +461,7 @@ namespace
     using namespace boost;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
 
+#ifdef MKT_USING_XMLRPC
     if(args.size() < 3) throw mkt::command_error("Missing arguments");
     
     string varname = args[1];
@@ -479,6 +485,9 @@ namespace
 
         mkt::var_changed.disconnect(syncer(varname, remote_server));
       }
+#else
+    throw mkt::command_error("unsync_var unsupported");    
+#endif
   }
 
   class init_commands
@@ -546,6 +555,9 @@ namespace
 
   mkt::variable_map           _var_map;
   mkt::mutex                  _var_map_mutex;
+
+  mkt::echo_map               _echo_map;
+  mkt::mutex                  _echo_map_mutex;
 
   //This should only be called after we lock the threads mutex
   void update_thread_keys()
@@ -1042,12 +1054,8 @@ namespace mkt
     boost::this_thread::sleep( boost::posix_time::milliseconds(ms) );
   }
 
-  std::string var(const std::string& varname, bool create)
+  std::string var(const std::string& varname)
   {
-    if(!create && !has_var(varname))
-      throw system_error(boost::str(boost::format("Invalid variable %1%")
-                                    % varname));
-
     bool creating = false;
     std::string val;
     {
@@ -1156,6 +1164,20 @@ namespace mkt
     return local_args;
   }
 
+  void echo_register(int64 id, const echo_func& f)
+  {
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    unique_lock lock(_echo_map_mutex);
+    _echo_map[id] = f;
+  }
+
+  void echo_unregister(int64 id)
+  {
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    unique_lock lock(_echo_map_mutex);
+    _echo_map[id] = echo_func();
+  }
+
   void echo(const std::string& str)
   {
     using namespace std;
@@ -1163,50 +1185,57 @@ namespace mkt
     using namespace boost::algorithm;
 
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    const string quiet_varname("__quiet");
-    const string remote_echo_varname("__remote_echo");
-    bool quiet = false;
-    if(has_var(quiet_varname))
-      {
-        if(var(quiet_varname)=="true")
-          quiet = true;
-        else if(var(quiet_varname)=="false")
-          quiet = false;
-        else throw system_error(boost::str(format("Invalid value for __quiet: %1%")
-                                           % var(quiet_varname)));
-      }
-    
-    if(!quiet) cout << str;
 
-    if(has_var(remote_echo_varname))
-      {
-        string remote_echo_value = var(remote_echo_varname);
-        mkt::argument_vector remote_servers;
-        split(remote_servers, remote_echo_value, is_any_of(","), token_compress_on);
+    const string echo_functions_varname("__echo_functions");
+    string echo_functions_value = var(echo_functions_varname);
+    mkt::argument_vector echo_functions_strings;
+    split(echo_functions_strings, echo_functions_value, is_any_of(","), token_compress_on);
 
-        //execute an echo with the specified string on each host listed
-        BOOST_FOREACH(string& remote_server, remote_servers)
+    //execute each echo function
+    BOOST_FOREACH(string& echo_function_id_string, echo_functions_strings)
+      {
+        trim(echo_function_id_string);
+        if(echo_function_id_string.empty()) continue;
+
+        try
           {
-            trim(remote_server); //get rid of whitespace between ',' chars
-            mkt::argument_vector remote_host_components;
-            split(remote_host_components, remote_server,
-                  is_any_of(":"), token_compress_on);
-            if(remote_host_components.empty()) continue;
-            int port = default_port();
-            std::string host = remote_host_components[0];
-            if(remote_host_components.size()>=2)
-              port = lexical_cast<int>(remote_host_components[1]);
-
-            mkt::argument_vector launch_remote_echo_args;
-            launch_remote_echo_args.push_back("async");
-            launch_remote_echo_args.push_back("remote");
-            launch_remote_echo_args.push_back(host);
-            launch_remote_echo_args.push_back("port");
-            launch_remote_echo_args.push_back(lexical_cast<string>(port));
-            launch_remote_echo_args.push_back("echo");
-            launch_remote_echo_args.push_back(str);
-            mkt::exec(launch_remote_echo_args);
+            uint64 echo_function_id = lexical_cast<uint64>(echo_function_id_string);
+            echo(echo_function_id, str);
+          }
+        catch(const bad_lexical_cast &)
+          {
+            throw system_error(boost::str(format("Invalid echo_function_id %1%")
+                                          % echo_function_id_string));                
           }
       }
+  }
+
+  void echo(uint64 echo_function_id, const std::string& str)
+  {
+    using namespace std;
+    using namespace boost;
+
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    unique_lock lock(_echo_map_mutex);
+    if(_echo_map[echo_function_id])
+      _echo_map[echo_function_id](str);
+  }
+
+  //the default echo function
+  void do_echo(const std::string& str)
+  {
+    using namespace boost;
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    if(!var<bool>("__quiet")) std::cout << str;
+  }
+
+  void init_echo()
+  {
+    //setup echo so it outputs to console
+    mkt::echo_register(0, mkt::do_echo);
+#ifdef MKT_USING_XMLRPC
+    mkt::echo_register(1, mkt::do_remote_echo);
+#endif
+    mkt::var("__echo_functions", "0, 1");
   }
 }

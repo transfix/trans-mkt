@@ -1,6 +1,10 @@
 #include <mkt/app.h>
 #include <mkt/exceptions.h>
 
+#ifdef MKT_USING_XMLRPC
+#include <mkt/xmlrpc.h>
+#endif
+
 #ifdef MKT_INTERACTIVE
 #ifdef __WINDOWS__
 #include <editline_win/readline.h>
@@ -10,6 +14,9 @@
 #endif
 
 #include <boost/current_function.hpp>
+#include <boost/algorithm/string/split.hpp>
+#include <boost/algorithm/string/trim.hpp>
+#include <boost/algorithm/string/classification.hpp>
 #include <boost/foreach.hpp>
 
 #include <iostream>
@@ -19,6 +26,7 @@ namespace
 {
   void do_help()
   {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     mkt::exec(mkt::argument_vector(1,"help"));
   }
 
@@ -26,6 +34,8 @@ namespace
   void interactive()
   {
     using namespace std;
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+
     char *line;
     while((line = readline("mkt> ")))
       {
@@ -54,9 +64,12 @@ namespace
 int main(int argc, char **argv)
 {
   using namespace std;
-  
+  mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+
   mkt::wait_for_threads w;
   mkt::argv(argc, argv);
+
+  mkt::init_echo();
 
   try
     {

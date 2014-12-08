@@ -31,6 +31,9 @@ namespace mkt
   private: \
     std::string _msg; \
   }
+
+  //Standard, system-wide exceptions
+  MKT_DEF_EXCEPTION(system_error);
 }
 
 #endif
