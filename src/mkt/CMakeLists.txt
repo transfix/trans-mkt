@@ -6,6 +6,7 @@ endif(WIN32)
 
 set(INCLUDE_FILES
   ../../inc/mkt/exceptions.h
+  ../../inc/mkt/types.h
   ../../inc/mkt/app.h
   ${CMAKE_BINARY_DIR}/inc/mkt/config.h
 )
