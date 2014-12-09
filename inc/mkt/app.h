@@ -55,6 +55,9 @@ namespace mkt
   //Executes a command. The first string is the command, with everything
   //after being the command's arguments.
   void exec(const argument_vector& args);
+  
+  //Executes a command first splitting up a single string into arguments.
+  void ex(const std::string& cmd);
 
   //Executes commands listed in a file where the first argument is the filename. 
   //If parallel is true, commands are executed in separate threads.
@@ -226,7 +229,7 @@ namespace mkt
       var(varname, str_val);
     }
 
-  //special versions for bool
+  //specializations for bool
   template <> 
     inline bool var<bool>(const std::string& varname)
     {

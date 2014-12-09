@@ -27,7 +27,7 @@ namespace
   void do_help()
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    mkt::exec(mkt::argument_vector(1,"help"));
+    mkt::ex("help");
   }
 
 #ifdef MKT_INTERACTIVE
@@ -47,9 +47,7 @@ namespace
 
         try
           {
-            mkt::argument_vector args = mkt::split(str_line);
-            if(!args.empty())
-              mkt::exec(args);
+            mkt::ex(str_line);
           }
         catch(mkt::exception& e)
           {

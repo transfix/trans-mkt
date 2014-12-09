@@ -650,6 +650,14 @@ namespace mkt
     cmd.get<0>()(local_args);
   }
 
+  void ex(const std::string& cmd)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    mkt::argument_vector args = mkt::split(cmd);
+    if(!args.empty())
+      mkt::exec(args);
+  }
+
   void exec_file(const argument_vector& file_args, bool parallel)
   {
     using namespace std;
@@ -1222,20 +1230,21 @@ namespace mkt
   }
 
   //the default echo function
-  void do_echo(const std::string& str)
+  void do_echo(std::ostream* is, const std::string& str)
   {
     using namespace boost;
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    if(!var<bool>("__quiet")) std::cout << str;
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    if(is && !var<bool>("__quiet")) (*is) << str;
   }
 
   void init_echo()
   {
     //setup echo so it outputs to console
-    mkt::echo_register(0, mkt::do_echo);
+    echo_register(0, boost::bind(mkt::do_echo, &std::cout, _1));
+    echo_register(1, boost::bind(mkt::do_echo, &std::cerr, _1));
 #ifdef MKT_USING_XMLRPC
-    mkt::echo_register(1, mkt::do_remote_echo);
+    echo_register(2, mkt::do_remote_echo);
 #endif
-    mkt::var("__echo_functions", "0, 1");
+    var("__echo_functions", "0, 1, 2");
   }
 }
