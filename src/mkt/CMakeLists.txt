@@ -5,6 +5,7 @@ if(WIN32)
 endif(WIN32)
 
 set(INCLUDE_FILES
+  ../../inc/mkt/commands.h
   ../../inc/mkt/exceptions.h
   ../../inc/mkt/types.h
   ../../inc/mkt/app.h
@@ -13,6 +14,7 @@ set(INCLUDE_FILES
 
 set(SOURCE_FILES
   app.cpp
+  commands.cpp
 )
 
 source_group("Source Files" FILES ${SOURCE_FILES})

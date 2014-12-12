@@ -1,5 +1,5 @@
 #include <mkt/xmlrpc.h>
-#include <mkt/exceptions.h>
+#include <mkt/commands.h>
 
 #include <xmlrpc/XmlRpc.h>
 

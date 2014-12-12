@@ -17,6 +17,7 @@ namespace mkt
   typedef boost::shared_mutex        mutex;
   typedef boost::unique_lock<mutex>  unique_lock;
   typedef boost::shared_lock<mutex>  shared_lock;
+  typedef std::vector<std::string>   argument_vector;
 }
 
 #endif
