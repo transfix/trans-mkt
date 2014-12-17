@@ -9,6 +9,9 @@
 #include <boost/thread/locks.hpp>
 #include <boost/thread/shared_mutex.hpp>
 
+#include <string>
+#include <vector>
+
 //basic types used by the system
 namespace mkt
 {
