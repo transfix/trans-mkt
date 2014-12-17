@@ -8,6 +8,14 @@
 #include <mkt/xmlrpc.h>
 #endif
 
+#ifdef MKT_INTERACTIVE
+#ifdef __WINDOWS__
+#include <editline_win/readline.h>
+#else
+  #include <editline/readline.h>
+#endif
+#endif
+
 #include <boost/format.hpp>
 #include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
@@ -32,6 +40,34 @@ namespace
 {
   mkt::command_map     _commands;
   mkt::mutex           _commands_lock;
+
+  void cmd(const mkt::argument_vector& args)
+  {
+#ifdef MKT_INTERACTIVE
+    using namespace std;
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+
+    char *line;
+    while((line = readline("mkt> ")))
+      {
+        std::string str_line(line);
+        add_history(line);
+        free(line);
+
+        if(str_line == "exit" || str_line == "quit") break;
+
+        try
+          {
+            mkt::ex(str_line);
+          }
+        catch(mkt::exception& e)
+          {
+            if(!e.what_str().empty()) 
+              cout << "Error: " << e.what_str() << endl;          
+          }
+      }
+#endif
+  }
 
   //launches a command in a thread
   void async(const mkt::argument_vector& args)
@@ -513,6 +549,7 @@ namespace
                   " a command with the same thread name is finished running.");
       add_command("async_file", async_file,
                   "Executes commands listed in a file in parallel.");
+      add_command("cmd", cmd, "starts an interactive command prompt.");
       add_command("echo", echo,
                   "Prints out all arguments after echo to standard out.");
       add_command("file", file,

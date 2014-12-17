@@ -3,18 +3,6 @@
 #include <mkt/threads.h>
 #include <mkt/echo.h>
 
-#ifdef MKT_USING_XMLRPC
-#include <mkt/xmlrpc.h>
-#endif
-
-#ifdef MKT_INTERACTIVE
-#ifdef __WINDOWS__
-#include <editline_win/readline.h>
-#else
-  #include <editline/readline.h>
-#endif
-#endif
-
 #include <boost/current_function.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
@@ -32,33 +20,11 @@ namespace
     mkt::ex("help");
   }
 
-#ifdef MKT_INTERACTIVE
   void interactive()
   {
-    using namespace std;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-
-    char *line;
-    while((line = readline("mkt> ")))
-      {
-        std::string str_line(line);
-        add_history(line);
-        free(line);
-
-        if(str_line == "exit" || str_line == "quit") break;
-
-        try
-          {
-            mkt::ex(str_line);
-          }
-        catch(mkt::exception& e)
-          {
-            if(!e.what_str().empty()) 
-              cout << "Error: " << e.what_str() << endl;          
-          }
-      }
+    mkt::ex("cmd");
   }
-#endif
 }
 
 int main(int argc, char **argv)
