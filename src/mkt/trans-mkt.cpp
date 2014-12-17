@@ -1,6 +1,7 @@
 #include <mkt/app.h>
 #include <mkt/commands.h>
 #include <mkt/threads.h>
+#include <mkt/echo.h>
 
 #ifdef MKT_USING_XMLRPC
 #include <mkt/xmlrpc.h>

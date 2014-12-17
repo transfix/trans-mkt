@@ -5,11 +5,12 @@ if(WIN32)
 endif(WIN32)
 
 set(INCLUDE_FILES
-  ../../inc/mkt/commands.h
-  ../../inc/mkt/exceptions.h
-  ../../inc/mkt/types.h
   ../../inc/mkt/app.h
+  ../../inc/mkt/commands.h
+  ../../inc/mkt/echo.h
+  ../../inc/mkt/exceptions.h
   ../../inc/mkt/threads.h
+  ../../inc/mkt/types.h
   ../../inc/mkt/vars.h
   ${CMAKE_BINARY_DIR}/inc/mkt/config.h
 )
@@ -17,6 +18,7 @@ set(INCLUDE_FILES
 set(SOURCE_FILES
   app.cpp
   commands.cpp
+  echo.cpp
   threads.cpp
   vars.cpp
 )

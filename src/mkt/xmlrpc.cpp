@@ -2,6 +2,7 @@
 #include <mkt/commands.h>
 #include <mkt/threads.h>
 #include <mkt/vars.h>
+#include <mkt/echo.h>
 
 #include <xmlrpc/XmlRpc.h>
 
