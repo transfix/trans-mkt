@@ -1,5 +1,6 @@
 #include <mkt/app.h>
 #include <mkt/commands.h>
+#include <mkt/threads.h>
 
 #ifdef MKT_INTERACTIVE
 #ifdef __WINDOWS__

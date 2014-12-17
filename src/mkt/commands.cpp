@@ -1,5 +1,6 @@
 #include <mkt/commands.h>
 #include <mkt/app.h>
+#include <mkt/threads.h>
 
 #ifdef MKT_USING_XMLRPC
 #include <mkt/xmlrpc.h>
@@ -72,9 +73,19 @@ namespace
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     mkt::argument_vector local_args = args;
     local_args.erase(local_args.begin());
+
+    //Check if the first argument is an integer. If it is, make it the echo function id to use.
+    int echo_id = -1;
+    try
+      {
+        echo_id = boost::lexical_cast<int>(local_args[0]);
+        local_args.erase(local_args.begin());
+      }
+    catch(boost::bad_lexical_cast&) {}
+
     std::string echo_str = 
       boost::algorithm::join(local_args," ");
-    mkt::out().stream() << echo_str << std::endl;
+    mkt::out(echo_id).stream() << echo_str;
   }
 
   void help(const mkt::argument_vector& args)
@@ -414,7 +425,7 @@ namespace
           }
       }
     else if(args.size() == 2)
-      mkt::var(args[1]); //create an empty variable
+      mkt::var(args[1], ""); //create an empty variable
     else
       mkt::var(args[1], args[2]); //actually do an assignment operation
   }
@@ -617,24 +628,12 @@ namespace mkt
             line_num++;
 
             //use '#' for comments
-            if(!line.empty() && line[0]=='#') continue;
+            if(line.empty() || line[0]=='#') continue;
 
-            mkt::argument_vector av;
-            split(av, line, is_any_of(" "), token_compress_on);
-            
-            //remove empty strings
-            mkt::argument_vector av_clean;
-            BOOST_FOREACH(const string& cur, av)
-              if(!cur.empty()) av_clean.push_back(cur);
-        
-            if(!av_clean.empty())
-              {
-                if(!parallel)
-                  mkt::exec(av_clean);
-                else
-                  mkt::start_thread(mkt::join(av_clean),
-                                    boost::bind(mkt::exec, av_clean));
-              }
+            if(!parallel)
+              mkt::ex(line);
+            else
+              mkt::start_thread(line, boost::bind(mkt::ex, line));
           }
         catch(mkt::exception& e)
           {

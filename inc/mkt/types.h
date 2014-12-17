@@ -5,6 +5,7 @@
 
 #include <boost/cstdint.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/signals2.hpp>
 #include <boost/thread/locks.hpp>
 #include <boost/thread/shared_mutex.hpp>
 
@@ -18,6 +19,7 @@ namespace mkt
   typedef boost::unique_lock<mutex>  unique_lock;
   typedef boost::shared_lock<mutex>  shared_lock;
   typedef std::vector<std::string>   argument_vector;
+  typedef boost::signals2::signal<void (const std::string&)> map_change_signal;
 }
 
 #endif

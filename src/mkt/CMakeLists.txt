@@ -9,12 +9,14 @@ set(INCLUDE_FILES
   ../../inc/mkt/exceptions.h
   ../../inc/mkt/types.h
   ../../inc/mkt/app.h
+  ../../inc/mkt/threads.h
   ${CMAKE_BINARY_DIR}/inc/mkt/config.h
 )
 
 set(SOURCE_FILES
   app.cpp
   commands.cpp
+  threads.cpp
 )
 
 source_group("Source Files" FILES ${SOURCE_FILES})

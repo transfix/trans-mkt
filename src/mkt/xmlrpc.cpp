@@ -1,5 +1,6 @@
 #include <mkt/xmlrpc.h>
 #include <mkt/commands.h>
+#include <mkt/threads.h>
 
 #include <xmlrpc/XmlRpc.h>
 
