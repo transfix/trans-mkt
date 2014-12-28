@@ -4,10 +4,6 @@
 #include <mkt/vars.h>
 #include <mkt/echo.h>
 
-#ifdef MKT_USING_XMLRPC
-#include <mkt/xmlrpc.h>
-#endif
-
 #ifdef MKT_INTERACTIVE
 #ifdef __WINDOWS__
 #include <editline_win/readline.h>
@@ -27,20 +23,65 @@
 #include <boost/regex.hpp>
 
 #include <fstream>
+#include <cstdlib>
 
 namespace mkt
 {
   MKT_DEF_EXCEPTION(async_error);
-  MKT_DEF_EXCEPTION(command_error);
   MKT_DEF_EXCEPTION(file_error);
 }
 
 //Commands related code
 namespace
 {
-  mkt::command_map     _commands;
-  mkt::mutex           _commands_lock;
+  struct commands_data
+  {
+    mkt::command_map  _commands;
+    mkt::mutex        _commands_lock;
+  };
+  commands_data     *_commands_data = 0;
+  bool               _commands_atexit = false;
 
+  void _cmds_cleanup()
+  {
+    _commands_atexit = true;
+    delete _commands_data;
+    _commands_data = 0;
+  }
+
+  commands_data* _get_commands_data()
+  {
+    if(_commands_atexit) 
+      throw mkt::command_error("Already at program exit!");
+
+    if(!_commands_data)
+      {
+        _commands_data = new commands_data;
+        std::atexit(_cmds_cleanup);
+      }
+
+    if(!_commands_data) 
+      throw mkt::command_error("Missing static commands data!");
+
+    return _commands_data;
+  }
+
+  //use this to access command map
+  mkt::command_map& cmds()
+  {
+    return _get_commands_data()->_commands;
+  }
+
+  //use this to access command map mutex
+  mkt::mutex& cmds_lock()
+  {
+    return _get_commands_data()->_commands_lock;
+  }
+}
+
+//Default system commands
+namespace
+{
   void cmd(const mkt::argument_vector& args)
   {
 #ifdef MKT_INTERACTIVE
@@ -66,6 +107,8 @@ namespace
               cout << "Error: " << e.what_str() << endl;          
           }
       }
+#else
+    throw mkt::command_error("interactive mode unsupported");
 #endif
   }
 
@@ -136,7 +179,7 @@ namespace
 
     mkt::out().stream() << "Version: " << mkt::version() << endl;
     mkt::out().stream() << "Usage: " << prog_name << " <command> <command args>" << endl << endl;
-    BOOST_FOREACH(mkt::command_map::value_type& cmd, _commands)
+    BOOST_FOREACH(mkt::command_map::value_type& cmd, cmds())
       {
         mkt::out().stream() << " - " << cmd.first << endl;
         mkt::out().stream() << cmd.second.get<1>() << endl << endl;
@@ -226,94 +269,6 @@ namespace
     //now execute the split commands serially
     BOOST_FOREACH(const mkt::argument_vector& cur, split_args)
       mkt::exec(cur);
-  }
-
-  //Creates a command that syncs a variable on a remote host with the current value here
-#ifdef MKT_USING_XMLRPC
-  class syncer
-  {
-  public:
-    syncer(const std::string& v, 
-           const std::string& h)
-      : _varname(v), _host(h) {}
-    void operator()(const std::string& in_var)
-    {
-      using namespace boost::algorithm;
-      if(_varname != in_var) return;
-      
-      std::string val = mkt::var(in_var);
-
-      //do the remote var syncronization as an asyncronous command
-      mkt::argument_vector remote_set_args;
-      remote_set_args.push_back("async");
-      remote_set_args.push_back("wait"); //TODO: wait up to a certain amount of threads then start interrupting
-      remote_set_args.push_back("remote");
-
-      trim(_host);
-      mkt::argument_vector host_components;
-      split(host_components, _host, is_any_of(":"), token_compress_on);
-      if(host_components.empty()) throw mkt::system_error("Invalid host.");
-
-      remote_set_args.push_back(host_components[0]);
-      if(host_components.size()>=2)
-        {
-          remote_set_args.push_back("port");
-          remote_set_args.push_back(host_components[1]);
-        }
- 
-      remote_set_args.push_back("set");
-      remote_set_args.push_back(in_var);
-      remote_set_args.push_back(val);
-      mkt::exec(remote_set_args);
-    }
-
-    bool operator==(const syncer& rhs) const
-    {
-      if(&rhs == this) return true;
-      return 
-        (_varname == rhs._varname) &&
-        (_host == rhs._host);
-    }
-
-  private:
-    std::string _varname;
-    std::string _host;
-  };
-#endif
-
-  void sync_var(const mkt::argument_vector& args)
-  {
-    using namespace std;
-    using namespace boost;
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-
-#ifdef MKT_USING_XMLRPC
-    if(args.size() < 3) throw mkt::command_error("Missing arguments");
-    
-    string varname = args[1];
-    string remote_servers_string = args[2];
-
-    mkt::argument_vector remote_servers;
-    split(remote_servers, remote_servers_string, is_any_of(","), token_compress_on);
-    
-    //execute an echo with the specified string on each host listed
-    BOOST_FOREACH(string& remote_server, remote_servers)
-      {
-        trim(remote_server); //get rid of whitespace between ',' chars
-        mkt::argument_vector remote_host_components;
-        split(remote_host_components, remote_server,
-              is_any_of(":"), token_compress_on);
-        if(remote_host_components.empty()) continue;
-        int port = mkt::default_port();
-        std::string host = remote_host_components[0];
-        if(remote_host_components.size()>=2)
-          port = lexical_cast<int>(remote_host_components[1]);
-
-        mkt::var_changed.connect(syncer(varname, remote_server));
-      }    
-#else
-    throw mkt::command_error("sync_var unsupported");
-#endif
   }
 
   void parallel(const mkt::argument_vector& args)
@@ -416,41 +371,6 @@ namespace
         }
   }
 
-#ifdef MKT_USING_XMLRPC
-  void local_ip(const mkt::argument_vector& args)
-  {
-    using namespace std;
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    mkt::out().stream() << mkt::get_local_ip_address() << endl;
-  }
-
-  void remote(const mkt::argument_vector& args)
-  {
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);    
-    mkt::argument_vector local_args = args;
-    local_args.erase(local_args.begin());
-    if(local_args.size() < 2)
-      throw mkt::command_error("Missing arguments");
-    
-    std::string host = local_args[0];
-    local_args.erase(local_args.begin());
-
-    int port = 31337;
-    //look for port keyword
-    //TODO: support ':' host/port separator
-    if(local_args[0] == "port")
-      {
-        local_args.erase(local_args.begin());
-        if(local_args.empty())
-          throw mkt::command_error("Missing arguments");
-        port = boost::lexical_cast<int>(local_args[0]);
-        local_args.erase(local_args.begin());
-      }
-
-    mkt::exec_remote(local_args, host, port);
-  }  
-#endif
-
   void set(const mkt::argument_vector& args)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
@@ -477,60 +397,12 @@ namespace
     mkt::sleep(boost::lexical_cast<int64_t>(args[1]));
   }
 
-#ifdef MKT_USING_XMLRPC
-  void server(const mkt::argument_vector& args)
-  {
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    
-    int port = 31337;
-    if(args.size()>=2)
-      port = boost::lexical_cast<int>(args[1]);
-    
-    mkt::run_xmlrpc_server(port);
-  }
-#endif
-
   void unset(const mkt::argument_vector& args)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     if(args.size()<2)
       throw mkt::command_error("Missing arguments for unset");
     mkt::unset_var(args[1]);
-  }
-
-  void unsync_var(const mkt::argument_vector& args)
-  {
-    using namespace std;
-    using namespace boost;
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-
-#ifdef MKT_USING_XMLRPC
-    if(args.size() < 3) throw mkt::command_error("Missing arguments");
-    
-    string varname = args[1];
-    string remote_servers_string = args[2];
-
-    mkt::argument_vector remote_servers;
-    split(remote_servers, remote_servers_string, is_any_of(","), token_compress_on);
-    
-    //disconnect the syncer associated with each remote host that matches
-    BOOST_FOREACH(string& remote_server, remote_servers)
-      {
-        trim(remote_server); //get rid of whitespace between ',' chars
-        mkt::argument_vector remote_host_components;
-        split(remote_host_components, remote_server,
-              is_any_of(":"), token_compress_on);
-        if(remote_host_components.empty()) continue;
-        int port = mkt::default_port();
-        std::string host = remote_host_components[0];
-        if(remote_host_components.size()>=2)
-          port = lexical_cast<int>(remote_host_components[1]);
-
-        mkt::var_changed.disconnect(syncer(varname, remote_server));
-      }
-#else
-    throw mkt::command_error("unsync_var unsupported");    
-#endif
   }
 
   //Default set of commands.
@@ -549,7 +421,11 @@ namespace
                   " a command with the same thread name is finished running.");
       add_command("async_file", async_file,
                   "Executes commands listed in a file in parallel.");
+      add_command("parallel", parallel,
+                  "Executes a series of commands in parallel, separated by an 'and' keyword.");
+#ifdef MKT_INTERACTIVE
       add_command("cmd", cmd, "starts an interactive command prompt.");
+#endif
       add_command("echo", echo,
                   "Prints out all arguments after echo to standard out.");
       add_command("file", file,
@@ -559,34 +435,17 @@ namespace
       add_command("help", help, "Prints command list.");
       add_command("interrupt", interrupt, "Interrupts a running thread.");
       add_command("threads", list_threads, "Lists running threads by name.");
-#ifdef MKT_USING_XMLRPC
-      add_command("local_ip", local_ip, 
-                  "Prints the local ip address of the default interface.");
-      add_command("parallel", parallel,
-                  "Executes a series of commands in parallel, separated by a 'and' keyword.");
-      add_command("remote", remote, 
-                  "remote <host> [port <port>] <command> -\n"
-                  "Executes a command on the specified host.");
-#endif
       add_command("repeat", repeat, "repeat <num times> <command> -\nRepeat command.");
       add_command("serial", serial, "Execute commands serially separated by a 'then' keyword.");
-#ifdef MKT_USING_XMLRPC
-      add_command("server", server, 
-                  "server <port>\nStart an xmlrpc server at the specified port.");
-#endif
       add_command("set", set, "set [<varname> <value>]\n"
                   "Sets a variable to the value specified.  If none, prints all variables in the system.");
       add_command("sleep", sleep, "sleep <milliseconds>\nSleep for the time specified.");
-      add_command("sync_var", sync_var, "sync_var <varname> <remote host comma separated list> -\n"
-                  "Keeps variables syncronized across hosts.");
       add_command("unset", unset, "unset <varname>\nRemoves a variable from the system.");
-      add_command("unsync_var", unsync_var, "unsync_var <varname> <remote host comma separated list> -\n"
-                  "Disconnects variable syncronization across hosts.");
-                  
     }
   } init_commands_static_init;
 }
 
+//API implementation
 namespace mkt
 {
   void add_command(const std::string& name,
@@ -594,21 +453,24 @@ namespace mkt
                    const std::string& desc)
   {
     using namespace boost;
-    unique_lock lock(_commands_lock);
-    _commands[name] = make_tuple(func, desc);
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    unique_lock lock(cmds_lock());
+    cmds()[name] = make_tuple(func, desc);
   }
 
   void remove_command(const std::string& name)
   {
-    unique_lock lock(_commands_lock);
-    _commands.erase(name);
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    unique_lock lock(cmds_lock());
+    cmds().erase(name);
   }
 
   argument_vector get_commands()
   {
-    unique_lock lock(_commands_lock);    
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    unique_lock lock(cmds_lock());    
     argument_vector av;
-    BOOST_FOREACH(command_map::value_type& cur, _commands)
+    BOOST_FOREACH(command_map::value_type& cur, cmds())
       av.push_back(cur.first);
     return av;
   }
@@ -617,19 +479,21 @@ namespace mkt
   {
     using namespace boost;
     using namespace boost::algorithm;
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
 
-    argument_vector local_args = 
-      split_vars(expand_vars(args));
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    if(args.empty()) throw command_error("Missing command string");
+
+    argument_vector local_args = args;
+    BOOST_FOREACH(std::string& arg, local_args)
+      arg = expand_vars(arg);
 
     command cmd;
     {
-      unique_lock lock(_commands_lock);
-      if(local_args.empty()) throw command_error("Missing command string");
+      unique_lock lock(cmds_lock());
       std::string cmd_str = local_args[0];
-      if(_commands.find(cmd_str)==_commands.end())
+      if(cmds().find(cmd_str)==cmds().end())
         throw command_error(str(format("Invalid command: %1%") % cmd_str));
-      cmd = _commands[cmd_str];
+      cmd = cmds()[cmd_str];
     }
     cmd.get<0>()(local_args);
   }
@@ -638,8 +502,7 @@ namespace mkt
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     mkt::argument_vector args = mkt::split(cmd);
-    if(!args.empty())
-      mkt::exec(args);
+    mkt::exec(args);
   }
 
   void exec_file(const argument_vector& file_args, bool parallel)
@@ -682,4 +545,6 @@ namespace mkt
           }
       }
   }
+
+  bool commands_at_exit() { return _commands_atexit; }
 }

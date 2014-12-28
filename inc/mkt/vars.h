@@ -72,14 +72,18 @@ namespace mkt
       std::string str_val = val ? "true" : "false";
       var(varname, str_val);
     }
-    
 
-  //expands variable names to their values
-  argument_vector expand_vars(const argument_vector& args);
+  //Splits a string into an argument vector, taking into account
+  //quote characters for argument values with spaces.
+  argument_vector split(const std::string& args);
 
-  //splits arguments with spaces into an argument_vector and replaces that argument
-  //with the vector.  The argument after a keyword 'split' gets split in this way.
-  argument_vector split_vars(const argument_vector& args);
+  //joins an argument vector into a single string
+  std::string join(const argument_vector& args);    
+
+  //expands any variable names in the string to their values
+  std::string expand_vars(const std::string& args);
+
+  bool vars_at_exit();
 }
 
 #endif

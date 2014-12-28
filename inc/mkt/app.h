@@ -10,15 +10,12 @@ namespace mkt
   //version string
   std::string version();
 
-  //splits a string into an argument vector
-  argument_vector split(const std::string& args);
-
-  //joins an argument vector into a single string
-  std::string join(const argument_vector& args);
-
   //accessing the process' argument vector
   argument_vector argv();
   void argv(int argc, char **argv);
+
+  //Use this to determine if the program is exiting
+  bool at_exit();
 }
 
 #endif

@@ -104,18 +104,24 @@ namespace mkt
               thread_ptr(new boost::thread(init_thread<T>(t))));
     }
 
-  //instantiate this in main() to wait for all threads to finish before quitting the process.
+  //Instantiate this in main() to wait for all threads to finish before quitting the process.
+  //Failing to do so will also prevent threads_changed signals from firing.
   class wait_for_threads
   {
   public:
+    wait_for_threads();
     ~wait_for_threads();
+    static bool at_start();
     static bool at_exit();
     static void wait();
   private:
+    static bool _at_start;
     static bool _at_exit;
   };
 
   void sleep(int64 ms);
+
+  bool threads_at_exit();
 }
 
 #endif

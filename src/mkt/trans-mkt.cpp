@@ -60,14 +60,15 @@ int main(int argc, char **argv)
         }
       catch(mkt::exception& e)
         {
-          if(!e.what_str().empty()) cout << "Error: " << e.what_str() << endl;
+          if(!e.what_str().empty()) 
+            mkt::out(1).stream() << "Error: " << e.what_str() << endl;
           do_help();
           return EXIT_FAILURE;
         }
     }
   catch(std::exception& e)
     {
-      cerr << "Exception: " << e.what() << endl;
+      mkt::out(1).stream() << "Exception: " << e.what() << endl;
       return EXIT_FAILURE;
     }
 

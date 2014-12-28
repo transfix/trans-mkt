@@ -1,5 +1,6 @@
 #include <mkt/vars.h>
 #include <mkt/threads.h>
+#include <mkt/exceptions.h>
 
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/join.hpp>
@@ -9,23 +10,66 @@
 #include <boost/array.hpp>
 #include <boost/foreach.hpp>
 
-namespace
-{
-  mkt::variable_map           _var_map;
-  mkt::mutex                  _var_map_mutex;
-}
-
 namespace mkt
 {
-  //variable API
+  MKT_DEF_EXCEPTION(vars_error);
+}
+
+namespace
+{
+  struct vars_data
+  {
+    mkt::variable_map           _var_map;
+    mkt::mutex                  _var_map_mutex;
+  };
+  vars_data                    *_vars_data = 0;
+  bool                          _vars_atexit = false;
+
+  void _vars_cleanup()
+  {
+    _vars_atexit = true;
+    delete _vars_data;
+    _vars_data = 0;
+  }
+
+  vars_data* _get_vars_data()
+  {
+    if(_vars_atexit)
+      throw mkt::vars_error("Already at program exit!");
+
+    if(!_vars_data)
+      {
+        _vars_data = new vars_data;
+        std::atexit(_vars_cleanup);
+      }
+
+    if(!_vars_data)
+      throw mkt::vars_error("Missing static variable data!");
+    return _vars_data;
+  }
+
+  mkt::variable_map& var_map_ref()
+  {
+    return _get_vars_data()->_var_map;
+  }
+
+  mkt::mutex& var_map_mutex_ref()
+  {
+    return _get_vars_data()->_var_map_mutex;
+  }
+}
+
+//variable API
+namespace mkt
+{
   std::string var(const std::string& varname)
   {
     bool creating = false;
     std::string val;
     {
-      unique_lock lock(_var_map_mutex);
-      if(_var_map.find(varname)==_var_map.end()) creating = true;
-      val = _var_map[varname];
+      unique_lock lock(var_map_mutex_ref());
+      if(var_map_ref().find(varname)==var_map_ref().end()) creating = true;
+      val = var_map_ref()[varname];
     }
     
     if(creating) var_changed(varname);
@@ -37,11 +81,11 @@ namespace mkt
     using namespace boost::algorithm;
     thread_info ti(BOOST_CURRENT_FUNCTION);
     {
-      unique_lock lock(_var_map_mutex);
+      unique_lock lock(var_map_mutex_ref());
       std::string local_varname(varname); trim(local_varname);
       std::string local_val(val); trim(local_val);
-      if(_var_map[local_varname] == local_val) return; //nothing to do
-      _var_map[local_varname] = local_val;
+      if(var_map_ref()[local_varname] == local_val) return; //nothing to do
+      var_map_ref()[local_varname] = local_val;
     }
     var_changed(varname);
   }
@@ -51,9 +95,9 @@ namespace mkt
     using namespace boost::algorithm;
     thread_info ti(BOOST_CURRENT_FUNCTION);
     {
-      unique_lock lock(_var_map_mutex);
+      unique_lock lock(var_map_mutex_ref());
       std::string local_varname(varname); trim(local_varname);
-      _var_map.erase(local_varname);
+      var_map_ref().erase(local_varname);
     }
     var_changed(varname);
   }
@@ -61,20 +105,20 @@ namespace mkt
   bool has_var(const std::string& varname)
   {
     using namespace boost::algorithm;
-    unique_lock lock(_var_map_mutex);
+    unique_lock lock(var_map_mutex_ref());
     thread_info ti(BOOST_CURRENT_FUNCTION);    
     std::string local_varname(varname); trim(local_varname);
-    if(_var_map.find(local_varname)==_var_map.end())
+    if(var_map_ref().find(local_varname)==var_map_ref().end())
       return false;
     else return true;
   }
 
   argument_vector list_vars()
   {
-    unique_lock lock(_var_map_mutex);
+    unique_lock lock(var_map_mutex_ref());
     thread_info ti(BOOST_CURRENT_FUNCTION);
     argument_vector vars;
-    BOOST_FOREACH(const variable_map::value_type& cur, _var_map)
+    BOOST_FOREACH(const variable_map::value_type& cur, var_map_ref())
       {
         std::string cur_varname = cur.first;
         boost::algorithm::trim(cur_varname);
@@ -85,12 +129,54 @@ namespace mkt
 
   map_change_signal var_changed;
 
-  argument_vector expand_vars(const argument_vector& args)
+  argument_vector split(const std::string& args)
+  {
+    using namespace std;
+    using namespace boost::algorithm;
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+
+    //split along quote boundaries to support quotes around arguments with spaces.
+    mkt::argument_vector av_strings;
+    split(av_strings, args, is_any_of("\""), token_compress_on);
+
+    mkt::argument_vector av;
+    int idx = 0;
+    BOOST_FOREACH(const string& cur, av_strings)
+      {
+        //Every even element is outside quotes and should be split
+        if(idx % 2 == 0)
+          {
+            mkt::argument_vector av_cur;
+            split(av_cur, cur, is_any_of(" "), token_compress_on);
+            BOOST_FOREACH(string& s, av_cur) trim(s);
+            av.insert(av.end(),
+                      av_cur.begin(), av_cur.end());
+            idx++;
+          }
+        else //just insert odd elements as they are
+          av.push_back(cur);
+      }
+
+    //remove empty strings
+    mkt::argument_vector av_clean;
+    BOOST_FOREACH(const string& cur, av)
+      if(!cur.empty()) av_clean.push_back(cur);
+    return av_clean;
+  }
+
+  std::string join(const argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    return boost::join(args," ");
+  }
+
+  //TODO: need to make sure multiple variables in a string are expanded
+  std::string expand_vars(const std::string& args)
   {
     using namespace std;
     using namespace boost;
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    argument_vector local_args(args);
+    string local_args(args);
 
     boost::array<regex, 2> exprs = 
       { 
@@ -98,33 +184,36 @@ namespace mkt
         regex("\\$\\{(\\w+)\\}") 
       };
 
-    BOOST_FOREACH(string& arg, local_args)
+    bool found;
+    do
       {
+        found = false;
         BOOST_FOREACH(regex& expr, exprs)
           {
             match_results<string::iterator> what;
             match_flag_type flags = match_default;
             try
               {
-                if(regex_search(arg.begin(), arg.end(), what, expr, flags))
-                  arg = var(string(what[1])); //do the expansion
+                if(regex_search(local_args.begin(), 
+                                local_args.end(), what, expr, flags))
+                  {
+                    //do the expansion
+                    string var_name = string(what[1]);
+                    if(!has_var(var_name)) continue; //TODO: what if this throws
+                    found = true;
+                    string expanded_arg = var(var_name);
+                    local_args.replace(what[1].first, what[1].second,
+                                       expanded_arg);
+                    //http://www.boost.org/doc/libs/1_57_0/libs/regex/doc/html/boost_regex/ref/regex_search.html
+                  }
               }
             catch(...){}
           }
       }
-
+    while(found);
+    
     return local_args;
   }
 
-  argument_vector split_vars(const argument_vector& args)
-  {
-    thread_info ti(BOOST_CURRENT_FUNCTION);
-    argument_vector local_args(args);
-
-    //TODO: look for special keyword 'split' and split the argument right afterward into an argument
-    //vector and add it to the overall vector.  This way variables that represent commands can be split
-    //into an argument vector and executed.
-
-    return local_args;
-  }
+  bool vars_at_exit() { return _vars_atexit; }
 }

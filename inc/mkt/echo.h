@@ -42,6 +42,8 @@ namespace mkt
   };
 
   void init_echo(); //set up standard echo functions
+
+  bool echo_at_exit();
 }
 
 #endif

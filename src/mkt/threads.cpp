@@ -1,40 +1,99 @@
 #include <mkt/threads.h>
 #include <mkt/app.h>
 #include <mkt/echo.h>
+#include <mkt/exceptions.h>
 
 #include <boost/foreach.hpp>
 
+namespace mkt
+{
+  MKT_DEF_EXCEPTION(thread_error);
+}
+
 namespace
 {
-  mkt::thread_map             _threads;
-  mkt::thread_progress_map    _thread_progress;
-  mkt::thread_key_map         _thread_keys;
-  mkt::thread_info_map        _thread_info;
-  mkt::mutex                  _threads_mutex;
+  struct threads_data
+  {
+    mkt::thread_map             _threads;
+    mkt::thread_progress_map    _thread_progress;
+    mkt::thread_key_map         _thread_keys;
+    mkt::thread_info_map        _thread_info;
+    mkt::mutex                  _threads_mutex;
+  };
+  threads_data                 *_threads_data = 0;
+  bool                          _threads_atexit = false;
 
+  void _threads_cleanup()
+  {
+    _threads_atexit = true;
+    delete _threads_data;
+    _threads_data = 0;
+  }
+
+  threads_data* _get_threads_data()
+  {
+    if(_threads_atexit)
+      throw mkt::thread_error("Already at program exit!");
+
+    if(!_threads_data)
+      {
+        _threads_data = new threads_data;
+        std::atexit(_threads_cleanup);
+      }
+
+    if(!_threads_data) 
+      throw mkt::thread_error("Missing static thread data!");
+    return _threads_data;
+  }
+
+  mkt::thread_map& threads_ref()
+  {
+    return _get_threads_data()->_threads;
+  }
+
+  mkt::thread_progress_map& thread_progress_ref()
+  {
+    return _get_threads_data()->_thread_progress;
+  }
+
+  mkt::thread_key_map& thread_keys_ref()
+  {
+    return _get_threads_data()->_thread_keys;
+  }
+
+  mkt::thread_info_map& thread_info_ref()
+  {
+    return _get_threads_data()->_thread_info;
+  }
+
+  mkt::mutex& threads_mutex_ref()
+  {
+    return _get_threads_data()->_threads_mutex;
+  }
+  
   //This should only be called after we lock the threads mutex
   void update_thread_keys()
   {
     using namespace std;
     using namespace mkt;
 
-    _thread_keys.clear();
+    thread_keys_ref().clear();
 
     std::set<boost::thread::id> infoIds;
-    BOOST_FOREACH(thread_info_map::value_type val, _thread_info)
+    BOOST_FOREACH(thread_info_map::value_type val, thread_info_ref())
       infoIds.insert(val.first);
 
     std::set<boost::thread::id> currentIds;
-    BOOST_FOREACH(thread_map::value_type val, _threads)
+    BOOST_FOREACH(thread_map::value_type val, threads_ref())
       {
         thread_ptr ptr = val.second;
         if(ptr)
           {
-            _thread_keys[ptr->get_id()]=val.first;
+            thread_keys_ref()[ptr->get_id()]=val.first;
 
             //set the thread info to a default state if not already set
-            if(_thread_info[ptr->get_id()].empty())
-              _thread_info[ptr->get_id()] = "running";
+            if(thread_info_ref()[ptr->get_id()].empty())
+              thread_info_ref()[ptr->get_id()] = "running";
           }
 
         currentIds.insert(ptr->get_id());
@@ -47,7 +106,7 @@ namespace
                    inserter(infoIdsToRemove,infoIdsToRemove.begin()));
 
     BOOST_FOREACH(boost::thread::id tid, infoIdsToRemove)
-      _thread_info.erase(tid);
+      thread_info_ref().erase(tid);
   }
 }
 
@@ -58,28 +117,30 @@ namespace mkt
    */
   map_change_signal threads_changed;
 
-  //use this to trigger the threads_changed signal because
-  //problems happen when signals are envoked during program exit.
+  //Use this to trigger the threads_changed signal because
+  //problems happen when signals are envoked during program start/exit due to static
+  //initialization order.
   void trigger_threads_changed(const std::string& key)
   {
+    bool as = wait_for_threads::at_start();
     bool ae = wait_for_threads::at_exit();
-    if(!ae)
+    if(!as && !ae)
       threads_changed(key);
   }
 
   thread_map threads()
   {
     boost::this_thread::interruption_point();
-    unique_lock lock(_threads_mutex);
-    return _threads;
+    unique_lock lock(threads_mutex_ref());
+    return threads_ref();
   }
 
   thread_ptr threads(const std::string& key)
   {
     boost::this_thread::interruption_point();
-    unique_lock lock(_threads_mutex);
-    if(_threads.find(key)!=_threads.end())
-      return _threads[key];
+    unique_lock lock(threads_mutex_ref());
+    if(threads_ref().find(key)!=threads_ref().end())
+      return threads_ref()[key];
     return thread_ptr();
   }
 
@@ -91,11 +152,11 @@ namespace mkt
       threads(key)->interrupt();
 
     {
-      unique_lock lock(_threads_mutex);
+      unique_lock lock(threads_mutex_ref());
       if(!val)
-        _threads.erase(key);
+        threads_ref().erase(key);
       else
-        _threads[key] = val;
+        threads_ref()[key] = val;
       update_thread_keys();
     }
 
@@ -106,13 +167,13 @@ namespace mkt
   {
     boost::this_thread::interruption_point();
     {
-      unique_lock lock(_threads_mutex);
+      unique_lock lock(threads_mutex_ref());
       
-      BOOST_FOREACH(thread_map::value_type t, _threads)
+      BOOST_FOREACH(thread_map::value_type t, threads_ref())
 	if(t.second) t.second->interrupt();
 
-      _threads = map;
-      _thread_progress.clear();
+      threads_ref() = map;
+      thread_progress_ref().clear();
       update_thread_keys();
     }
 
@@ -122,8 +183,8 @@ namespace mkt
   bool has_thread(const std::string& key)
   {
     boost::this_thread::interruption_point();
-    unique_lock lock(_threads_mutex);
-    if(_threads.find(key)!=_threads.end())
+    unique_lock lock(threads_mutex_ref());
+    if(threads_ref().find(key)!=threads_ref().end())
       return true;
     return false;
   }
@@ -131,18 +192,18 @@ namespace mkt
   double thread_progress(const std::string& key)
   {
     boost::this_thread::interruption_point();
-    unique_lock lock(_threads_mutex);
+    unique_lock lock(threads_mutex_ref());
 
     boost::thread::id tid;
     if(key.empty())
       tid = boost::this_thread::get_id();
-    else if(_threads.find(key)!=_threads.end() &&
-            _threads[key])
-      tid = _threads[key]->get_id();
+    else if(threads_ref().find(key)!=threads_ref().end() &&
+            threads_ref()[key])
+      tid = threads_ref()[key]->get_id();
     else
       return 0.0;
     
-    return _thread_progress[tid];
+    return thread_progress_ref()[tid];
   }
 
   void thread_progress(double progress)
@@ -162,7 +223,7 @@ namespace mkt
 
     bool changed = false;
     {
-      unique_lock lock(_threads_mutex);
+      unique_lock lock(threads_mutex_ref());
       boost::thread::id tid;
 
       if(key.empty())
@@ -170,15 +231,15 @@ namespace mkt
           tid = boost::this_thread::get_id();
           changed = true;
         }
-      else if(_threads.find(key)!=_threads.end() &&
-              _threads[key])
+      else if(threads_ref().find(key)!=threads_ref().end() &&
+              threads_ref()[key])
         {
-          tid = _threads[key]->get_id();
+          tid = threads_ref()[key]->get_id();
           changed = true;
         }
       
       if(changed)
-        _thread_progress[tid]=progress;
+        thread_progress_ref()[tid]=progress;
     }
 
     if(changed)
@@ -189,18 +250,18 @@ namespace mkt
   {
     boost::this_thread::interruption_point();
     {
-      unique_lock lock(_threads_mutex);
+      unique_lock lock(threads_mutex_ref());
 
       boost::thread::id tid;
       if(key.empty())
         tid = boost::this_thread::get_id();
-      else if(_threads.find(key)!=_threads.end() &&
-              _threads[key])
-        tid = _threads[key]->get_id();
+      else if(threads_ref().find(key)!=threads_ref().end() &&
+              threads_ref()[key])
+        tid = threads_ref()[key]->get_id();
       else
         return;
 
-      _thread_progress.erase(tid);
+      thread_progress_ref().erase(tid);
     }
     trigger_threads_changed(key);
   }
@@ -209,9 +270,9 @@ namespace mkt
   {
     boost::this_thread::interruption_point();
     {
-      unique_lock lock(_threads_mutex);
-      if(_thread_keys.find(boost::this_thread::get_id())!=_thread_keys.end())
-        return _thread_keys[boost::this_thread::get_id()];
+      unique_lock lock(threads_mutex_ref());
+      if(thread_keys_ref().find(boost::this_thread::get_id())!=thread_keys_ref().end())
+        return thread_keys_ref()[boost::this_thread::get_id()];
       else
         return std::string("unknown");
     }
@@ -238,18 +299,18 @@ namespace mkt
   {
     boost::this_thread::interruption_point();
     {
-      unique_lock lock(_threads_mutex);
+      unique_lock lock(threads_mutex_ref());
 
       boost::thread::id tid;
       if(key.empty())
         tid = boost::this_thread::get_id();
-      else if(_threads.find(key)!=_threads.end() &&
-              _threads[key])
-        tid = _threads[key]->get_id();
+      else if(threads_ref().find(key)!=threads_ref().end() &&
+              threads_ref()[key])
+        tid = threads_ref()[key]->get_id();
       else
         return;
 
-      _thread_info[tid] = infostr;
+      thread_info_ref()[tid] = infostr;
     }
     trigger_threads_changed(key);
   }
@@ -258,18 +319,18 @@ namespace mkt
   {
     boost::this_thread::interruption_point();
     {
-      unique_lock lock(_threads_mutex);
+      unique_lock lock(threads_mutex_ref());
       
       boost::thread::id tid;
       if(key.empty())
         tid = boost::this_thread::get_id();
-      else if(_threads.find(key)!=_threads.end() &&
-              _threads[key])
-        tid = _threads[key]->get_id();
+      else if(threads_ref().find(key)!=threads_ref().end() &&
+              threads_ref()[key])
+        tid = threads_ref()[key]->get_id();
       else
         return std::string();
 
-      return _thread_info[tid];
+      return thread_info_ref()[tid];
     }
   }
 
@@ -308,13 +369,22 @@ namespace mkt
     remove_thread(thread_key());
   }
 
+  wait_for_threads::wait_for_threads()
+  {
+    _at_start = false;
+  }
+
   wait_for_threads::~wait_for_threads()
   {
     _at_exit = true;
     wait();
   }
 
-  bool wait_for_threads::at_exit() { return _at_exit; }
+  bool wait_for_threads::_at_start = true;
+  bool wait_for_threads::_at_exit  = false;
+
+  bool wait_for_threads::at_start() { return _at_start; }
+  bool wait_for_threads::at_exit()  { return _at_exit; }
 
   void wait_for_threads::wait()
   {
@@ -336,11 +406,11 @@ namespace mkt
       }
   }
 
-  bool wait_for_threads::_at_exit = false;
-
   void sleep(int64 ms)
   {
     thread_info ti(BOOST_CURRENT_FUNCTION);
     boost::this_thread::sleep( boost::posix_time::milliseconds(ms) );
   }
+
+  bool threads_at_exit() { return _threads_atexit; }
 }

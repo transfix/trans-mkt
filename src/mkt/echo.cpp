@@ -13,10 +13,53 @@
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/lexical_cast.hpp>
 
+namespace mkt
+{
+  MKT_DEF_EXCEPTION(echo_error);
+}
+
 namespace
 {
-  mkt::echo_map               _echo_map;
-  mkt::mutex                  _echo_map_mutex;
+  struct echo_data
+  {
+    mkt::echo_map               _echo_map;
+    mkt::mutex                  _echo_map_mutex;
+  };
+  echo_data                    *_echo_data = 0;
+  bool                          _echo_atexit = false;
+
+  void _echo_cleanup()
+  {
+    _echo_atexit = true;
+    delete _echo_data;
+    _echo_data = 0;
+  }
+
+  echo_data* _get_echo_data()
+  {
+    if(_echo_atexit)
+      throw mkt::echo_error("Already at program exit!");
+
+    if(!_echo_data)
+      {
+        _echo_data = new echo_data;
+        std::atexit(_echo_cleanup);
+      }
+
+    if(!_echo_data)
+      throw mkt::echo_error("Missing static variable data!");
+    return _echo_data;
+  }
+
+  mkt::echo_map& echo_map_ref()
+  {
+    return _get_echo_data()->_echo_map;
+  }
+
+  mkt::mutex& echo_map_mutex_ref()
+  {
+    return _get_echo_data()->_echo_map_mutex;
+  }
 }
 
 namespace mkt
@@ -24,15 +67,15 @@ namespace mkt
   void echo_register(int64 id, const echo_func& f)
   {
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    unique_lock lock(_echo_map_mutex);
-    _echo_map[id] = f;
+    unique_lock lock(echo_map_mutex_ref());
+    echo_map_ref()[id] = f;
   }
 
   void echo_unregister(int64 id)
   {
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    unique_lock lock(_echo_map_mutex);
-    _echo_map[id] = echo_func();
+    unique_lock lock(echo_map_mutex_ref());
+    echo_map_ref()[id] = echo_func();
   }
 
   void echo(const std::string& str)
@@ -73,9 +116,9 @@ namespace mkt
     using namespace boost;
 
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    unique_lock lock(_echo_map_mutex);
-    if(_echo_map[echo_function_id])
-      _echo_map[echo_function_id](str);
+    unique_lock lock(echo_map_mutex_ref());
+    if(echo_map_ref()[echo_function_id])
+      echo_map_ref()[echo_function_id](str);
   }
 
   //the default echo function
@@ -96,4 +139,6 @@ namespace mkt
 #endif
     var("__echo_functions", "0, 2");
   }
+
+  bool echo_at_exit() { return _echo_atexit; }
 }

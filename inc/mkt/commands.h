@@ -11,9 +11,9 @@
 namespace mkt
 {
   /*
-   * Command related types
+   * Command execution API
    */
-  
+  MKT_DEF_EXCEPTION(command_error);
   typedef boost::function<void (const argument_vector&)> command_func;
   typedef boost::tuple<command_func, std::string>        command;
   typedef std::map<std::string, command>                 command_map;
@@ -34,6 +34,12 @@ namespace mkt
   //Executes commands listed in a file where the first argument is the filename. 
   //If parallel is true, commands are executed in separate threads.
   void exec_file(const argument_vector& args, bool parallel = false);
+
+  //Use this to determine if this module sees that the program is quitting. 
+  //Trying to execute a command at that time will result in an exception 
+  //and termination without finishing the rest of registered std::atexit 
+  //functions.
+  bool commands_at_exit();
 }
 
 #endif
