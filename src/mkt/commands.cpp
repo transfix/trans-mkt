@@ -19,6 +19,7 @@
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/trim.hpp>
+#include <boost/algorithm/string/replace.hpp>
 #include <boost/current_function.hpp>
 #include <boost/regex.hpp>
 
@@ -482,8 +483,35 @@ namespace mkt
 
   void ex(const std::string& cmd)
   {
+    using namespace std;
+    using namespace boost;
+    using namespace boost::algorithm;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     mkt::argument_vector args = mkt::split(cmd);
+
+    //handle escape codes in each argument in the vector
+    typedef array<array<string, 2>, 8> codes_array;
+    codes_array codes =
+      {
+        {
+          {"\\n", "\n"},
+          {"\\r", "\r"},
+          {"\\t", "\t"},
+          {"\\v", "\v"},
+          {"\\b", "\b"},
+          {"\\f", "\f"},
+          {"\\a", "\a"},
+          {"\\\\", "\\"},
+        }
+      };
+    BOOST_FOREACH(string& arg, args)
+      {
+        BOOST_FOREACH(codes_array::value_type& code_array, codes)
+          {
+            replace_all(arg, code_array[0], code_array[1]);
+          }
+      }
+
     mkt::exec(args);
   }
 

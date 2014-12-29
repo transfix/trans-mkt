@@ -175,7 +175,6 @@ namespace mkt
   }
 
   //the default echo function
-  //TODO: handle newlines
   void do_echo(std::ostream* os, const std::string& str)
   {
     using namespace boost;
