@@ -110,11 +110,13 @@ namespace
   }
 }
 
+//TODO: move threading related commands here
+
+/*
+ * Thread API
+ */
 namespace mkt
 {
-  /*
-   * Thread API
-   */
   map_change_signal threads_changed;
 
   //Use this to trigger the threads_changed signal because

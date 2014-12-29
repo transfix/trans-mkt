@@ -1,6 +1,7 @@
 #include <mkt/echo.h>
 #include <mkt/threads.h>
 #include <mkt/vars.h>
+#include <mkt/commands.h>
 
 #ifdef MKT_USING_XMLRPC
 #include <mkt/xmlrpc.h>
@@ -9,15 +10,18 @@
 #include <boost/current_function.hpp>
 #include <boost/foreach.hpp>
 #include <boost/algorithm/string/split.hpp>
+#include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/lexical_cast.hpp>
 
+//This module's exceptions
 namespace mkt
 {
   MKT_DEF_EXCEPTION(echo_error);
 }
 
+//This module's static data
 namespace
 {
   struct echo_data
@@ -62,6 +66,55 @@ namespace
   }
 }
 
+//Echo commands
+namespace
+{
+  void echo(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    mkt::argument_vector local_args = args;
+    local_args.erase(local_args.begin());
+
+    if(local_args.empty())
+      throw mkt::echo_error("Nothing to echo");
+    
+    bool newline = true;
+    //Check if the first argument is an "-n". If it is, eat it and don't put a newline.
+    if(local_args[0] == "-n")
+      {
+        newline = false;
+        local_args.erase(local_args.begin());
+      }
+
+    //Check if the first argument is an integer. If it is, make it the echo function id to use.
+    int echo_id = -1;
+    try
+      {
+        echo_id = boost::lexical_cast<int>(local_args[0]);
+        local_args.erase(local_args.begin());
+      }
+    catch(boost::bad_lexical_cast&) {}
+
+    std::string echo_str = 
+      boost::algorithm::join(local_args," ");
+    mkt::out(echo_id).stream() << echo_str;
+    if(newline) mkt::out(echo_id).stream() << std::endl;
+  }
+
+  class init_commands
+  {
+  public:
+    init_commands()
+    {
+      using namespace std;
+      using namespace mkt;
+      add_command("echo", echo,
+                  "Prints out all arguments after echo to standard out.");
+    }
+  } init_commands_static_init;
+}
+
+//Echo API implementation
 namespace mkt
 {
   void echo_register(int64 id, const echo_func& f)
@@ -122,11 +175,15 @@ namespace mkt
   }
 
   //the default echo function
-  void do_echo(std::ostream* is, const std::string& str)
+  //TODO: handle newlines
+  void do_echo(std::ostream* os, const std::string& str)
   {
     using namespace boost;
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    if(is && !var<bool>("__quiet")) (*is) << str;
+    if(os && !var<bool>("__echo_quiet")) 
+      {
+        (*os) << str;
+      }
   }
 
   void init_echo()

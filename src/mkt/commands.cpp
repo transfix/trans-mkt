@@ -25,13 +25,14 @@
 #include <fstream>
 #include <cstdlib>
 
+//This module's exceptions
 namespace mkt
 {
   MKT_DEF_EXCEPTION(async_error);
   MKT_DEF_EXCEPTION(file_error);
 }
 
-//Commands related code
+//This module's static data
 namespace
 {
   struct commands_data
@@ -104,7 +105,10 @@ namespace
         catch(mkt::exception& e)
           {
             if(!e.what_str().empty()) 
-              cout << "Error: " << e.what_str() << endl;          
+              mkt::out().stream() 
+                << "Error: " 
+                << e.what_str() 
+                << endl;
           }
       }
 #else
@@ -147,26 +151,6 @@ namespace
     if(local_args.empty()) throw mkt::command_error("Missing file name.");
 
     mkt::exec_file(local_args, true);
-  }
-
-  void echo(const mkt::argument_vector& args)
-  {
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    mkt::argument_vector local_args = args;
-    local_args.erase(local_args.begin());
-
-    //Check if the first argument is an integer. If it is, make it the echo function id to use.
-    int echo_id = -1;
-    try
-      {
-        echo_id = boost::lexical_cast<int>(local_args[0]);
-        local_args.erase(local_args.begin());
-      }
-    catch(boost::bad_lexical_cast&) {}
-
-    std::string echo_str = 
-      boost::algorithm::join(local_args," ");
-    mkt::out(echo_id).stream() << echo_str;
   }
 
   void help(const mkt::argument_vector& args)
@@ -426,8 +410,6 @@ namespace
 #ifdef MKT_INTERACTIVE
       add_command("cmd", cmd, "starts an interactive command prompt.");
 #endif
-      add_command("echo", echo,
-                  "Prints out all arguments after echo to standard out.");
       add_command("file", file,
                   "file <file path> - \n"
                   "Executes commands listed in a file, line by line sequentially.");

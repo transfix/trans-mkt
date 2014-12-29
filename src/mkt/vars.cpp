@@ -129,6 +129,7 @@ namespace mkt
 
   map_change_signal var_changed;
 
+  //TODO: parse this with boost spirit
   argument_vector split(const std::string& args)
   {
     using namespace std;
