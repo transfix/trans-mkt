@@ -6,6 +6,7 @@ endif(WIN32)
 
 set(INCLUDE_FILES
   ../../inc/mkt/app.h
+  ../../inc/mkt/assets.h
   ../../inc/mkt/commands.h
   ../../inc/mkt/echo.h
   ../../inc/mkt/exceptions.h
@@ -17,6 +18,7 @@ set(INCLUDE_FILES
 
 set(SOURCE_FILES
   app.cpp
+  assets.cpp
   commands.cpp
   echo.cpp
   threads.cpp

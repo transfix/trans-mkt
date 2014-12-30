@@ -3,6 +3,8 @@
 #include <mkt/threads.h>
 #include <mkt/echo.h>
 
+#include <mkt/assets.h>
+
 #include <boost/current_function.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
@@ -36,6 +38,7 @@ int main(int argc, char **argv)
   mkt::argv(argc, argv);
 
   mkt::init_echo();
+  mkt::init_assets();
 
   try
     {
