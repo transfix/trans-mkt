@@ -1,6 +1,8 @@
 #include <mkt/vars.h>
 #include <mkt/threads.h>
 #include <mkt/exceptions.h>
+#include <mkt/echo.h>
+#include <mkt/commands.h>
 
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/join.hpp>
@@ -11,11 +13,13 @@
 #include <boost/foreach.hpp>
 #include <boost/program_options.hpp>
 
+//This module's exceptions
 namespace mkt
 {
   MKT_DEF_EXCEPTION(vars_error);
 }
 
+//This module's static data
 namespace
 {
   struct vars_data
@@ -60,7 +64,59 @@ namespace
   }
 }
 
-//variable API
+//Variable related commands
+namespace
+{
+  void has_var(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    if(args.size()<2) 
+      throw mkt::command_error("Missing variable argument.");
+    mkt::out().stream() << (mkt::has_var(args[1]) ? "true" : "false") << std::endl;
+  }
+
+  void set(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    if(args.size() == 1) //just print all variables
+      {
+        mkt::argument_vector vars = mkt::list_vars();
+        BOOST_FOREACH(const std::string& cur_var, vars)
+          {
+            mkt::out().stream() << "set " << cur_var << " \"" << mkt::var(cur_var) << "\"" << std::endl;
+          }
+      }
+    else if(args.size() == 2)
+      mkt::var(args[1], ""); //create an empty variable
+    else
+      mkt::var(args[1], args[2]); //actually do an assignment operation
+  }
+
+  void unset(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    if(args.size()<2)
+      throw mkt::command_error("Missing arguments for unset");
+    mkt::unset_var(args[1]);
+  }
+
+  class init_commands
+  {
+  public:
+    init_commands()
+    {
+      using namespace std;
+      using namespace mkt;
+
+      add_command("has_var", has_var, "Returns true or false whether the variable exists or not.");
+      add_command("set", set, "set [<varname> <value>]\n"
+                  "Sets a variable to the value specified.  If none, prints all variables in the system.");
+      add_command("unset", unset, "unset <varname>\nRemoves a variable from the system.");
+    }
+  } init_commands_static_init;
+}
+
+//variable API implementation
 namespace mkt
 {
   std::string var(const std::string& varname)

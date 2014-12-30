@@ -112,6 +112,18 @@ namespace
 #endif
   }
 
+  void file(const mkt::argument_vector& args)
+  {
+    using namespace std;
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+
+    mkt::argument_vector local_args = args;
+    local_args.erase(local_args.begin()); //remove command string
+    if(local_args.empty()) throw mkt::command_error("Missing file name.");
+
+    mkt::exec_file(local_args);
+  }
+
   void help(const mkt::argument_vector& args)
   {
     using namespace std;
@@ -127,14 +139,6 @@ namespace
         mkt::out().stream() << " - " << cmd.first << endl;
         mkt::out().stream() << cmd.second.get<1>() << endl << endl;
       }
-  }
-
-  void has_var(const mkt::argument_vector& args)
-  {
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    if(args.size()<2) 
-      throw mkt::command_error("Missing variable argument.");
-    mkt::out().stream() << (mkt::has_var(args[1]) ? "true" : "false") << std::endl;
   }
 
   void repeat(const mkt::argument_vector& args)
@@ -195,18 +199,6 @@ namespace
     BOOST_FOREACH(const mkt::argument_vector& cur, split_args)
       mkt::exec(cur);
   }
-
-  void file(const mkt::argument_vector& args)
-  {
-    using namespace std;
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-
-    mkt::argument_vector local_args = args;
-    local_args.erase(local_args.begin()); //remove command string
-    if(local_args.empty()) throw mkt::command_error("Missing file name.");
-
-    mkt::exec_file(local_args);
-  }
   
   //commands TODO:
   //macro - command list, creates a new command. like serial but it doesnt call.  uses 'then' keyword.
@@ -221,31 +213,6 @@ namespace
 
   //use muparser for math expression evaluation
   //cpp-netlib for http requests & http server
-
-  void set(const mkt::argument_vector& args)
-  {
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    if(args.size() == 1) //just print all variables
-      {
-        mkt::argument_vector vars = mkt::list_vars();
-        BOOST_FOREACH(const std::string& cur_var, vars)
-          {
-            mkt::out().stream() << "set " << cur_var << " \"" << mkt::var(cur_var) << "\"" << std::endl;
-          }
-      }
-    else if(args.size() == 2)
-      mkt::var(args[1], ""); //create an empty variable
-    else
-      mkt::var(args[1], args[2]); //actually do an assignment operation
-  }
-
-  void unset(const mkt::argument_vector& args)
-  {
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    if(args.size()<2)
-      throw mkt::command_error("Missing arguments for unset");
-    mkt::unset_var(args[1]);
-  }
 
   //Default set of commands.
   class init_commands
@@ -262,13 +229,9 @@ namespace
       add_command("file", file,
                   "file <file path> - \n"
                   "Executes commands listed in a file, line by line sequentially.");
-      add_command("has_var", has_var, "Returns true or false whether the variable exists or not.");
       add_command("help", help, "Prints command list.");
       add_command("repeat", repeat, "repeat <num times> <command> -\nRepeat command.");
       add_command("serial", serial, "Execute commands serially separated by a 'then' keyword.");
-      add_command("set", set, "set [<varname> <value>]\n"
-                  "Sets a variable to the value specified.  If none, prints all variables in the system.");
-      add_command("unset", unset, "unset <varname>\nRemoves a variable from the system.");
     }
   } init_commands_static_init;
 }
