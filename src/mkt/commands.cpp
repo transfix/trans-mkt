@@ -15,13 +15,9 @@
 #include <boost/format.hpp>
 #include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/algorithm/string/split.hpp>
-#include <boost/algorithm/string/join.hpp>
-#include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/current_function.hpp>
-#include <boost/regex.hpp>
 
 #include <fstream>
 #include <cstdlib>
@@ -29,7 +25,6 @@
 //This module's exceptions
 namespace mkt
 {
-  MKT_DEF_EXCEPTION(async_error);
   MKT_DEF_EXCEPTION(file_error);
 }
 
@@ -117,43 +112,6 @@ namespace
 #endif
   }
 
-  //launches a command in a thread
-  void async(const mkt::argument_vector& args)
-  {
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-
-    mkt::argument_vector local_args = args;
-    local_args.erase(local_args.begin()); //remove command argument
-    if(local_args.empty())
-      throw mkt::async_error("No command to execute.");
-    
-    //check if the next argument is 'wait.'  If so, set the wait flag true
-    bool wait = false;
-    if(local_args[0] == "wait")
-      {
-        wait = true;
-        local_args.erase(local_args.begin()); //remove "wait"
-      }
-    
-    std::string local_args_str = boost::join(local_args," ");
-    mkt::start_thread(local_args_str,
-                      boost::bind(mkt::exec, local_args),
-                      wait);
-  }
-
-  void async_file(const mkt::argument_vector& args)
-  {
-    using namespace std;
-    using namespace boost::algorithm;
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-
-    mkt::argument_vector local_args = args;
-    local_args.erase(local_args.begin()); //remove command string
-    if(local_args.empty()) throw mkt::command_error("Missing file name.");
-
-    mkt::exec_file(local_args, true);
-  }
-
   void help(const mkt::argument_vector& args)
   {
     using namespace std;
@@ -179,28 +137,10 @@ namespace
     mkt::out().stream() << (mkt::has_var(args[1]) ? "true" : "false") << std::endl;
   }
 
-  void interrupt(const mkt::argument_vector& args)
-  {
-    using namespace std;
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-
-    if(args.size()<2) throw mkt::command_error("Missing thread name.");
-
-    mkt::argument_vector local_args = args;
-    local_args.erase(local_args.begin()); //remove the command string to form the thread name
-    std::string thread_name = 
-      boost::algorithm::join(local_args," ");
-
-    mkt::thread_ptr thread = mkt::threads(thread_name);
-    if(thread) thread->interrupt();
-    else throw mkt::system_error("Null thread pointer.");
-  }
-
   void repeat(const mkt::argument_vector& args)
   {
     using namespace std;
     using namespace boost;
-    using namespace boost::algorithm;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     if(args.size()<3) throw mkt::command_error("Missing arguments.");
 
@@ -256,46 +196,9 @@ namespace
       mkt::exec(cur);
   }
 
-  void parallel(const mkt::argument_vector& args)
-  {
-    using namespace std;
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-
-    mkt::argument_vector local_args = args;
-    local_args.erase(local_args.begin()); //remove the command string to form the thread name
-
-    //split the argument vector into separate command strings via 'and' keywords
-    vector<mkt::argument_vector> split_args;
-    mkt::argument_vector cur_command;
-    BOOST_FOREACH(const string& cur, local_args)
-      {
-        if(cur != "and")
-          cur_command.push_back(cur);
-        else
-          {
-            split_args.push_back(cur_command);
-            cur_command.clear();
-          }
-      }
-
-    if(!cur_command.empty())
-      split_args.push_back(cur_command);
-    else if(split_args.empty())
-      throw mkt::command_error("Missing command to execute.");
-    
-    //now execute the split commands in parallel
-    BOOST_FOREACH(const mkt::argument_vector& cur, split_args)
-      {
-        mkt::argument_vector local_cur = cur;
-        local_cur.insert(local_cur.begin(), "async");
-        async(local_cur);
-      }
-  }
-
   void file(const mkt::argument_vector& args)
   {
     using namespace std;
-    using namespace boost::algorithm;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
 
     mkt::argument_vector local_args = args;
@@ -319,43 +222,6 @@ namespace
   //use muparser for math expression evaluation
   //cpp-netlib for http requests & http server
 
-  void list_threads(const mkt::argument_vector& args)
-  {
-    using namespace std;
-    using namespace boost;
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    mkt::thread_map tm = mkt::threads();
-    bool expand_info = false;
-
-    //check for expand_info keyword after command arg
-    if(args.size()>=2 && args[1]=="expand_info")
-      expand_info = true;
-    
-    BOOST_FOREACH(mkt::thread_map::value_type& cur, tm)
-      if(cur.second)
-        {
-          string ti = mkt::get_thread_info(cur.first);
-
-          if(!expand_info)
-            {
-              //captures most function looking strings as output by BOOST_CURRENT_FUNCTION
-              regex expr("(\\S+\\(?\\W*\\)?)\\((.*)\\)");
-              match_results<string::iterator> what;
-              match_flag_type flags = match_default;
-              try
-                {
-                  if(regex_search(ti.begin(), ti.end(), what, expr, flags))
-                    ti = string(what[1]);
-                }
-              catch(...){}
-            }
-
-          mkt::out().stream() << cur.first << " " 
-                    << cur.second->get_id() << " " 
-                    << ti << endl;
-        }
-  }
-
   void set(const mkt::argument_vector& args)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
@@ -371,15 +237,6 @@ namespace
       mkt::var(args[1], ""); //create an empty variable
     else
       mkt::var(args[1], args[2]); //actually do an assignment operation
-  }
-
-  void sleep(const mkt::argument_vector& args)
-  {
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-
-    if(args.size()<2) 
-      throw mkt::command_error("Missing argument for sleep");
-    mkt::sleep(boost::lexical_cast<int64_t>(args[1]));
   }
 
   void unset(const mkt::argument_vector& args)
@@ -399,15 +256,6 @@ namespace
       using namespace std;
       using namespace mkt;
       
-      add_command("async", async,
-                  "Executes a command in another thread and"
-                  " returns immediately. If 'wait' is before\n"
-                  "the command, this command will execute only after"
-                  " a command with the same thread name is finished running.");
-      add_command("async_file", async_file,
-                  "Executes commands listed in a file in parallel.");
-      add_command("parallel", parallel,
-                  "Executes a series of commands in parallel, separated by an 'and' keyword.");
 #ifdef MKT_INTERACTIVE
       add_command("cmd", cmd, "starts an interactive command prompt.");
 #endif
@@ -416,13 +264,10 @@ namespace
                   "Executes commands listed in a file, line by line sequentially.");
       add_command("has_var", has_var, "Returns true or false whether the variable exists or not.");
       add_command("help", help, "Prints command list.");
-      add_command("interrupt", interrupt, "Interrupts a running thread.");
-      add_command("threads", list_threads, "Lists running threads by name.");
       add_command("repeat", repeat, "repeat <num times> <command> -\nRepeat command.");
       add_command("serial", serial, "Execute commands serially separated by a 'then' keyword.");
       add_command("set", set, "set [<varname> <value>]\n"
                   "Sets a variable to the value specified.  If none, prints all variables in the system.");
-      add_command("sleep", sleep, "sleep <milliseconds>\nSleep for the time specified.");
       add_command("unset", unset, "unset <varname>\nRemoves a variable from the system.");
     }
   } init_commands_static_init;
@@ -461,7 +306,6 @@ namespace mkt
   void exec(const argument_vector& args)
   {
     using namespace boost;
-    using namespace boost::algorithm;
 
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     if(args.empty()) throw command_error("Missing command string");
