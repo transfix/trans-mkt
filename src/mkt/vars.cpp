@@ -142,7 +142,6 @@ namespace mkt
     return boost::join(args," ");
   }
 
-  //TODO: need to make sure multiple variables in a string are expanded
   std::string expand_vars(const std::string& args)
   {
     using namespace std;
@@ -152,7 +151,7 @@ namespace mkt
 
     boost::array<regex, 2> exprs = 
       { 
-        regex("\\W*\\$(\\w+)\\W*"), 
+        regex("\\s*(\\$(\\w+))\\s*"), 
         regex("\\$\\{(\\w+)\\}") 
       };
 
@@ -166,17 +165,17 @@ namespace mkt
             match_flag_type flags = match_default;
             try
               {
+                //http://www.boost.org/doc/libs/1_57_0/libs/regex/doc/html/boost_regex/ref/regex_search.html
                 if(regex_search(local_args.begin(), 
                                 local_args.end(), what, expr, flags))
                   {
                     //do the expansion
-                    string var_name = string(what[1]);
+                    string var_name = string(what[2]);
                     if(!has_var(var_name)) continue; //TODO: what if this throws
                     found = true;
                     string expanded_arg = var(var_name);
                     local_args.replace(what[1].first, what[1].second,
                                        expanded_arg);
-                    //http://www.boost.org/doc/libs/1_57_0/libs/regex/doc/html/boost_regex/ref/regex_search.html
                   }
               }
             catch(...){}
