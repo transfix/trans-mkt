@@ -87,6 +87,8 @@ namespace
       {
         throw mkt::assets_error("Invalid asset id argument");
       }
+    if(asset_name == "null")
+      throw mkt::assets_error("Asset name cannot be 'null'");
     mkt::set_asset_id(asset_name, asset_id);
   }
 
@@ -129,6 +131,52 @@ namespace
                           << mkt::get_asset_id(name) << std::endl;
   }
 
+  void has_asset(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    mkt::argument_vector local_args = args;
+    local_args.erase(local_args.begin()); //remove the command string
+    if(local_args.empty())
+      throw mkt::assets_error("Missing asset id or asset name argument");
+
+    mkt::int64 asset_id = -1;
+    std::string asset_name("null");
+    try
+      {
+        asset_id = boost::lexical_cast<mkt::int64>(local_args[0]);
+      }
+    catch(boost::bad_lexical_cast&)
+      {
+        asset_name = local_args[0];
+      }
+
+    bool flag = mkt::has_asset(asset_id) || 
+      mkt::has_asset(asset_name);
+    mkt::out().stream() << (flag ? "true" : "false") << std::endl;
+  }
+
+  void remove_asset(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    mkt::argument_vector local_args = args;
+    local_args.erase(local_args.begin()); //remove the command string
+    if(local_args.empty())
+      throw mkt::assets_error("Missing asset id or asset name argument");
+
+    mkt::int64 asset_id = -1;
+    std::string asset_name("null");
+    try
+      {
+        asset_id = boost::lexical_cast<mkt::int64>(local_args[0]);
+        mkt::remove_asset(asset_id);
+      }
+    catch(boost::bad_lexical_cast&)
+      {
+        asset_name = local_args[0];
+        mkt::remove_asset(asset_name);
+      }    
+  }
+
   class init_commands
   {
   public:
@@ -137,14 +185,19 @@ namespace
       using namespace std;
       using namespace mkt;
 
-      add_command("set_asset_id", set_asset_id, 
-                  "set_asset_id [<asset name> <asset id>]\nBinds a name with an asset id");
+      add_command("get_assets", get_assets, 
+                  "Prints all assets name and id pairs.");
       add_command("get_asset_id", get_asset_id, 
                   "get_asset_id [<asset name>]\nPrints asset id associated with specified asset name");
       add_command("get_asset_name", get_asset_name, 
                   "get_asset_name [<asset id>]\nPrints asset name associated with specified asset id");
-      add_command("get_assets", get_assets, 
-                  "Prints all assets name and id pairs.");
+      add_command("has_asset", has_asset,
+                  "has_asset [<asset name>|<asset id>]\n"
+                  "Prints true or false whether a system has a specified asset");
+      add_command("remove_asset", remove_asset, 
+                  "remove_asset [<asset name>|<asset id>]\nRemove specified asset");
+      add_command("set_asset_id", set_asset_id, 
+                  "set_asset_id [<asset name>] [<asset id>]\nBinds a name with an asset id");
     }
   } init_commands_static_init;
 }
@@ -152,36 +205,52 @@ namespace
 //assets API impelmentation
 namespace mkt
 {
+  map_change_signal assets_changed;
+
   //no-op to force static init of this translation unit
   //TODO: is there a way around this such that main() doesn't need to know
   //about the assets module?
   void init_assets() {}
-
-  //TODO: need remove_asset and we need to make sure asset names and ids are unique
   
   void set_asset_id(const std::string& asset_name, int64 asset_id)
   {
+    using namespace boost;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    unique_lock lock(asset_map_mutex_ref());
-    asset_map_ref()[asset_name] = asset_id;
-    reverse_asset_map_ref()[asset_id] = asset_name;
+    if(has_asset(asset_id))
+      throw mkt::assets_error(str(format("There is already an asset with id %1%")
+                                  % asset_id));
+
+    remove_asset(asset_name);
+    
+    {
+      unique_lock lock(asset_map_mutex_ref());
+      asset_map_ref()[asset_name] = asset_id;
+      reverse_asset_map_ref()[asset_id] = asset_name;
+    }
+
+    assets_changed(asset_name);
   }
 
   int64 get_asset_id(const std::string& asset_name)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    shared_lock lock(asset_map_mutex_ref());
-    //if not found, return -1
-    if(asset_map_ref().find(asset_name) ==
-       asset_map_ref().end()) return -1;
-    return asset_map_ref()[asset_name]; 
+    if(!has_asset(asset_name)) return -1;
+
+    {
+      shared_lock lock(asset_map_mutex_ref());
+      return asset_map_ref()[asset_name]; 
+    }
   }
 
   std::string get_asset_name(int64 asset_id)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    shared_lock lock(asset_map_mutex_ref());
-    return reverse_asset_map_ref()[asset_id];
+    if(!has_asset(asset_id)) return "null";
+
+    {
+      shared_lock lock(asset_map_mutex_ref());
+      return reverse_asset_map_ref()[asset_id];
+    }
   }
 
   std::vector<std::string> get_asset_names()
@@ -209,5 +278,45 @@ namespace mkt
           ids.push_back(cur.first);
       }
     return ids;
+  }
+
+  bool has_asset(int64 asset_id)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    shared_lock lock(asset_map_mutex_ref());
+    return reverse_asset_map_ref().find(asset_id) !=
+      reverse_asset_map_ref().end();
+  }
+
+  bool has_asset(const std::string& asset_name)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    shared_lock lock(asset_map_mutex_ref());
+    return asset_map_ref().find(asset_name) !=
+      asset_map_ref().end();
+  }
+
+  void remove_asset(const std::string& asset_name)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    int64 asset_id = get_asset_id(asset_name);
+    {
+      unique_lock lock(asset_map_mutex_ref());
+      asset_map_ref().erase(asset_name);
+      reverse_asset_map_ref().erase(asset_id);
+    }
+    assets_changed(asset_name);
+  }
+
+  void remove_asset(int64 asset_id)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    std::string asset_name = get_asset_name(asset_id);
+    {
+      unique_lock lock(asset_map_mutex_ref());
+      asset_map_ref().erase(asset_name);
+      reverse_asset_map_ref().erase(asset_id);      
+    }
+    assets_changed(asset_name);
   }
 }
