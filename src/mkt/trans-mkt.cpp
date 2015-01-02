@@ -4,6 +4,7 @@
 #include <mkt/echo.h>
 
 #include <mkt/assets.h>
+#include <mkt/accounts.h>
 
 #include <boost/current_function.hpp>
 #include <boost/algorithm/string/split.hpp>
@@ -39,6 +40,7 @@ int main(int argc, char **argv)
 
   mkt::init_echo();
   mkt::init_assets();
+  mkt::init_accounts();
 
   try
     {

@@ -13,19 +13,22 @@
  */
 namespace mkt
 {
-  typedef std::map<std::string, int64>  asset_map;
-  typedef std::map<int64, std::string>  reverse_asset_map;
+  typedef mkt::int64 asset_id_t;
+  typedef std::map<std::string, asset_id_t>  asset_map;
+  typedef std::map<asset_id_t, std::string>  reverse_asset_map;
   extern map_change_signal assets_changed;
   void init_assets();
-  void set_asset_id(const std::string& asset_name, int64 asset_id);
-  int64 get_asset_id(const std::string& asset_name);
-  std::string get_asset_name(int64 asset_id);
+  void set_asset_id(const std::string& asset_name, asset_id_t asset_id);
+  asset_id_t get_asset_id(const std::string& asset_name);
+  std::string get_asset_name(asset_id_t asset_id);
   std::vector<std::string> get_asset_names();
-  std::vector<int64> get_asset_ids();
-  bool has_asset(int64 asset_id);
+  std::vector<asset_id_t> get_asset_ids();
+  bool has_asset(asset_id_t asset_id);
   bool has_asset(const std::string& asset_name); 
   void remove_asset(const std::string& asset_name);
-  void remove_asset(int64 asset_id);
+  void remove_asset(asset_id_t asset_id);
+
+  asset_map get_assets();
 }
 
 #endif

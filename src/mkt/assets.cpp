@@ -8,7 +8,7 @@
 #include <boost/foreach.hpp>
 
 /*
- * Assets module implementation
+ * Assets API module implementation
  */
  
 //This module's exceptions
@@ -78,10 +78,10 @@ namespace
     if(local_args.size() < 2)
       throw mkt::assets_error("Missing asset name and/or asset id arguments");
     std::string asset_name = local_args[0];
-    mkt::int64 asset_id = -1;
+    mkt::asset_id_t asset_id = -1;
     try
       {
-        asset_id = boost::lexical_cast<mkt::int64>(local_args[1]);
+        asset_id = boost::lexical_cast<mkt::asset_id_t>(local_args[1]);
       }
     catch(boost::bad_lexical_cast&)
       {
@@ -109,10 +109,10 @@ namespace
     local_args.erase(local_args.begin()); //remove the command string
     if(local_args.empty())
       throw mkt::assets_error("Missing asset id argument");
-    mkt::int64 asset_id = -1;
+    mkt::asset_id_t asset_id = -1;
     try
       {
-        asset_id = boost::lexical_cast<mkt::int64>(local_args[0]);
+        asset_id = boost::lexical_cast<mkt::asset_id_t>(local_args[0]);
       }
     catch(boost::bad_lexical_cast&)
       {
@@ -139,11 +139,11 @@ namespace
     if(local_args.empty())
       throw mkt::assets_error("Missing asset id or asset name argument");
 
-    mkt::int64 asset_id = -1;
+    mkt::asset_id_t asset_id = -1;
     std::string asset_name("null");
     try
       {
-        asset_id = boost::lexical_cast<mkt::int64>(local_args[0]);
+        asset_id = boost::lexical_cast<mkt::asset_id_t>(local_args[0]);
       }
     catch(boost::bad_lexical_cast&)
       {
@@ -163,11 +163,11 @@ namespace
     if(local_args.empty())
       throw mkt::assets_error("Missing asset id or asset name argument");
 
-    mkt::int64 asset_id = -1;
+    mkt::asset_id_t asset_id = -1;
     std::string asset_name("null");
     try
       {
-        asset_id = boost::lexical_cast<mkt::int64>(local_args[0]);
+        asset_id = boost::lexical_cast<mkt::asset_id_t>(local_args[0]);
         mkt::remove_asset(asset_id);
       }
     catch(boost::bad_lexical_cast&)
@@ -212,7 +212,7 @@ namespace mkt
   //about the assets module?
   void init_assets() {}
   
-  void set_asset_id(const std::string& asset_name, int64 asset_id)
+  void set_asset_id(const std::string& asset_name, asset_id_t asset_id)
   {
     using namespace boost;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
@@ -231,7 +231,7 @@ namespace mkt
     assets_changed(asset_name);
   }
 
-  int64 get_asset_id(const std::string& asset_name)
+  asset_id_t get_asset_id(const std::string& asset_name)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     if(!has_asset(asset_name)) return -1;
@@ -242,7 +242,7 @@ namespace mkt
     }
   }
 
-  std::string get_asset_name(int64 asset_id)
+  std::string get_asset_name(asset_id_t asset_id)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     if(!has_asset(asset_id)) return "null";
@@ -266,11 +266,11 @@ namespace mkt
     return names;
   }
 
-  std::vector<int64> get_asset_ids()
+  std::vector<asset_id_t> get_asset_ids()
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     shared_lock lock(asset_map_mutex_ref());
-    std::vector<int64> ids;
+    std::vector<asset_id_t> ids;
     BOOST_FOREACH(reverse_asset_map::value_type& cur, 
                   reverse_asset_map_ref())
       {
@@ -280,7 +280,7 @@ namespace mkt
     return ids;
   }
 
-  bool has_asset(int64 asset_id)
+  bool has_asset(asset_id_t asset_id)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     shared_lock lock(asset_map_mutex_ref());
@@ -299,7 +299,7 @@ namespace mkt
   void remove_asset(const std::string& asset_name)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    int64 asset_id = get_asset_id(asset_name);
+    asset_id_t asset_id = get_asset_id(asset_name);
     {
       unique_lock lock(asset_map_mutex_ref());
       asset_map_ref().erase(asset_name);
@@ -308,7 +308,7 @@ namespace mkt
     assets_changed(asset_name);
   }
 
-  void remove_asset(int64 asset_id)
+  void remove_asset(asset_id_t asset_id)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     std::string asset_name = get_asset_name(asset_id);
@@ -319,4 +319,6 @@ namespace mkt
     }
     assets_changed(asset_name);
   }
+
+  asset_map get_assets() { return asset_map_ref(); }
 }

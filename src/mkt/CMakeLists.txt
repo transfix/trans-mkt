@@ -5,6 +5,7 @@ if(WIN32)
 endif(WIN32)
 
 set(INCLUDE_FILES
+  ../../inc/mkt/accounts.h
   ../../inc/mkt/app.h
   ../../inc/mkt/assets.h
   ../../inc/mkt/commands.h
@@ -17,6 +18,7 @@ set(INCLUDE_FILES
 )
 
 set(SOURCE_FILES
+  accounts.cpp
   app.cpp
   assets.cpp
   commands.cpp
