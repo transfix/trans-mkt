@@ -8,6 +8,8 @@
 #include <boost/algorithm/string/join.hpp>
 #include <boost/regex.hpp>
 
+#include <set>
+
 //This module's exceptions
 namespace mkt
 {

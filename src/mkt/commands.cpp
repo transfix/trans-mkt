@@ -18,6 +18,7 @@
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/current_function.hpp>
+#include <boost/array.hpp>
 
 #include <fstream>
 #include <cstdlib>
