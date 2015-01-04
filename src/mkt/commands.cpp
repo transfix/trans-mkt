@@ -21,6 +21,7 @@
 #include <boost/array.hpp>
 
 #include <fstream>
+#include <iomanip>
 #include <cstdlib>
 
 //This module's exceptions
@@ -135,10 +136,35 @@ namespace
 
     mkt::out().stream() << "Version: " << mkt::version() << endl;
     mkt::out().stream() << "Usage: " << prog_name << " <command> <command args>" << endl << endl;
-    BOOST_FOREACH(mkt::command_map::value_type& cmd, cmds())
+
+    mkt::argument_vector local_args = args;
+    local_args.erase(local_args.begin()); //remove command string
+
+    //if no arguments, print all of the commands available.
+    if(local_args.empty())
       {
-        mkt::out().stream() << " - " << cmd.first << endl;
-        mkt::out().stream() << cmd.second.get<1>() << endl << endl;
+        mkt::argument_vector cmd_list = mkt::get_commands(); 
+
+        //make sure we have a multiple of 3 for table printing 3 columns
+        while(cmd_list.size() % 3) cmd_list.push_back(string());
+        
+        mkt::out().stream() << "Available commands:" << endl << endl;
+        for(size_t i = 0; i < cmd_list.size(); i+=3)
+          {
+            mkt::out().stream()
+              << setw(25) << cmd_list[i+0] 
+              << setw(25) << cmd_list[i+1] 
+              << setw(25) << cmd_list[i+2]
+              << endl;
+          }
+        
+        mkt::out().stream() 
+          << "\nUse the command \"help <command name>\" to get a description of each command" << endl;
+      }
+    else
+      {
+        mkt::out().stream()
+          << mkt::get_command_description(local_args[0]) << endl;
       }
   }
 
@@ -260,13 +286,20 @@ namespace mkt
   argument_vector get_commands()
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    unique_lock lock(cmds_lock());    
+    shared_lock lock(cmds_lock());    
     argument_vector av;
     BOOST_FOREACH(command_map::value_type& cur, cmds())
       av.push_back(cur.first);
     return av;
   }
 
+  std::string get_command_description(const std::string& name)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    shared_lock lock(cmds_lock());    
+    return cmds()[name].get<1>();
+  }
+  
   void exec(const argument_vector& args)
   {
     using namespace boost;

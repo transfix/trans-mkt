@@ -1,6 +1,7 @@
 #include <mkt/commands.h>
 #include <mkt/echo.h>
 #include <mkt/threads.h>
+#include <mkt/vars.h>
 #include <mkt/assets.h>
 #include <mkt/accounts.h>
 
@@ -23,6 +24,7 @@ namespace mkt
 }
 
 //This module's static data
+//TODO: consider using Boost.Multiprecision for balance type 
 namespace
 {
   typedef mkt::asset_id_t                          asset_id_t;
@@ -92,6 +94,29 @@ namespace
 //Account related commands
 namespace
 {
+  void exec_transaction(const mkt::argument_vector& args)
+  {
+    using namespace boost;
+    using namespace mkt;
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    argument_vector local_args = args;
+    local_args.erase(local_args.begin()); //remove the command string
+    if(local_args.size() < 4)
+      throw accounts_error("Missing arguments");
+    account_id_t to_account_id = 
+      string_cast<account_id_t>(local_args[0]);
+    account_id_t from_account_id = 
+      string_cast<account_id_t>(local_args[1]);
+    asset_id_t asset_id =
+      string_cast<asset_id_t>(local_args[2]);
+    double amount =
+      string_cast<double>(local_args[3]);
+    mkt::exec_transaction(to_account_id,
+                          from_account_id,
+                          asset_id,
+                          amount);
+  }
+
   void init_account(const mkt::argument_vector& args)
   {
     using namespace boost;
@@ -107,9 +132,10 @@ namespace
       {
         try
           {
-            account_id = boost::lexical_cast<mkt::account_id_t>(local_args[0]);
+            account_id = 
+              mkt::string_cast<mkt::account_id_t>(local_args[0]);
           }
-        catch(boost::bad_lexical_cast&)
+        catch(mkt::system_error&)
           {
             throw mkt::accounts_error(str(format("Invalid account id %1%")
                                           % local_args[0]));
@@ -121,6 +147,8 @@ namespace
                         << account_id 
                         << " initialized." << std::endl;
   }
+
+  
 
   class init_commands
   {

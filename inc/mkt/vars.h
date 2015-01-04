@@ -20,19 +20,37 @@ namespace mkt
   argument_vector list_vars();
   extern map_change_signal var_changed;
 
+  template <class T>
+    inline T string_cast(const std::string& str_val)
+    {
+      using namespace boost;
+      T val;
+      try
+        {
+          val = lexical_cast<T>(str_val);
+        }
+      catch(bad_lexical_cast&)
+        {
+          throw mkt::system_error(str(format("Invalid value type for string %1%")
+                                             % str_val));
+        }
+      return val;
+    }
+
   //template shortcuts for casting var values
   template <class T>
     inline T var(const std::string& varname)
     {
+      using namespace boost;
       T val;
       std::string str_val = var(varname);
       try
         {
-          val = boost::lexical_cast<T>(str_val);
+          val = string_cast<T>(str_val);
         }
-      catch(boost::bad_lexical_cast&)
+      catch(mkt::system_error&)
         {
-          throw mkt::system_error(boost::str(boost::format("Invalid value type for variable %1%: %2%")
+          throw mkt::system_error(str(format("Invalid value type for variable %1%: %2%")
                                              % varname % str_val));
         }
       return val;
