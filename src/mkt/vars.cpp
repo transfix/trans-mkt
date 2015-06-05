@@ -103,11 +103,16 @@ namespace
 {
   struct vars_data
   {
-    std::vector<mkt::variable_map>  _var_map_stack;
-    mkt::mutex                      _var_map_mutex;
+    mkt::variable_map_stacks    _var_map_stacks;
+
+    //big lock on the variable system- every thread needs to wait to access its potentially
+    //thread local variable map stack...
+    //TODO: lets change this when it matters! - 20150604
+    mkt::mutex                  _var_map_mutex;
   };
   vars_data                    *_vars_data = 0;
   bool                          _vars_atexit = false;
+  const std::string&            _vars_main_stackname("main");
 
   void _vars_cleanup()
   {
@@ -133,29 +138,34 @@ namespace
     return _vars_data;
   }
 
-  mkt::variable_map& var_map_ref()
+  using namespace boost::tuples;
+
+  mkt::variable_map& var_map_ref(const mkt::variable_map_stacks_key& key = 
+				 mkt::vars_variable_map_stacks_key_default())
   {
-    if(_get_vars_data()->_var_map_stack.empty())
-      _get_vars_data()->_var_map_stack.push_back(mkt::variable_map());
-    return _get_vars_data()->_var_map_stack.back();
+    if(_get_vars_data()->_var_map_stacks[key].empty())
+      _get_vars_data()->_var_map_stacks[key].push_back(mkt::variable_map());
+    return _get_vars_data()->_var_map_stacks[key].back();
   }
 
-  void var_map_push()
+  void var_map_push(const mkt::variable_map_stacks_key& key = 
+		    mkt::vars_variable_map_stacks_key_default())
   {
-    _get_vars_data()->_var_map_stack.push_back(var_map_ref());
+    _get_vars_data()->_var_map_stacks[key].push_back(var_map_ref());
   }
 
-  void var_map_pop()
+  void var_map_pop(const mkt::variable_map_stacks_key& key = 
+		   mkt::vars_variable_map_stacks_key_default())
   {
-    std::vector<mkt::variable_map> &vms = 
-      _get_vars_data()->_var_map_stack;
+    std::vector<mkt::variable_map> &vms = _get_vars_data()->_var_map_stacks[key];
     if(!vms.empty())
       vms.pop_back();
   }
 
-  size_t var_map_stack_size()
+  size_t var_map_stack_size(const mkt::variable_map_stacks_key& key = 
+			    mkt::vars_variable_map_stacks_key_default())
   {
-    return _get_vars_data()->_var_map_stack.size();
+    return _get_vars_data()->_var_map_stacks[key].size();
   }
 
   mkt::mutex& var_map_mutex_ref()
@@ -173,6 +183,18 @@ namespace
     if(args.size()<2) 
       throw mkt::command_error("Missing variable argument.");
     mkt::out().stream() << (mkt::has_var(args[1]) ? "true" : "false") << std::endl;
+  }
+
+  void pop(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    mkt::pop_vars();
+  }
+
+  void push(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    mkt::push_vars();
   }
 
   void set(const mkt::argument_vector& args)
@@ -209,6 +231,8 @@ namespace
       using namespace mkt;
 
       add_command("has_var", has_var, "Returns true or false whether the variable exists or not.");
+      add_command("pop", pop, "Pops the variable stack.");
+      add_command("push", push, "Pushes the variable stack.");
       add_command("set", set, "set [<varname> <value>]\n"
                   "Sets a variable to the value specified.  If none, prints all variables in the system.");
       add_command("unset", unset, "unset <varname>\nRemoves a variable from the system.");
@@ -219,21 +243,30 @@ namespace
 //variable API implementation
 namespace mkt
 {
-  std::string var(const std::string& varname)
+  const std::string& vars_main_stackname() { return _vars_main_stackname; }
+  const variable_map_stacks_key& vars_variable_map_stacks_key_default()
+  {
+    return variable_map_stacks_key(threads_default_keyname(),
+				   vars_main_stackname());
+  }
+
+  std::string var(const std::string& varname,
+		  const variable_map_stacks_key& key)
   {
     bool creating = false;
     std::string val;
     {
       unique_lock lock(var_map_mutex_ref());
-      if(var_map_ref().find(varname)==var_map_ref().end()) creating = true;
-      val = var_map_ref()[varname];
+      if(var_map_ref(key).find(varname)==var_map_ref(key).end()) creating = true;
+      val = var_map_ref(key)[varname];
     }
     
     if(creating) var_changed(varname);
     return val;
   }
 
-  void var(const std::string& varname, const std::string& val)
+  void var(const std::string& varname, const std::string& val,
+	   const variable_map_stacks_key& key)
   {
     using namespace boost::algorithm;
     thread_info ti(BOOST_CURRENT_FUNCTION);
@@ -241,41 +274,43 @@ namespace mkt
       unique_lock lock(var_map_mutex_ref());
       std::string local_varname(varname); trim(local_varname);
       std::string local_val(val); trim(local_val);
-      if(var_map_ref()[local_varname] == local_val) return; //nothing to do
-      var_map_ref()[local_varname] = local_val;
+      if(var_map_ref(key)[local_varname] == local_val) return; //nothing to do
+      var_map_ref(key)[local_varname] = local_val;
     }
     var_changed(varname);
   }
 
-  void unset_var(const std::string& varname)
+  void unset_var(const std::string& varname,
+		 const variable_map_stacks_key& key)
   {
     using namespace boost::algorithm;
     thread_info ti(BOOST_CURRENT_FUNCTION);
     {
       unique_lock lock(var_map_mutex_ref());
       std::string local_varname(varname); trim(local_varname);
-      var_map_ref().erase(local_varname);
+      var_map_ref(key).erase(local_varname);
     }
     var_changed(varname);
   }
 
-  bool has_var(const std::string& varname)
+  bool has_var(const std::string& varname,
+	       const variable_map_stacks_key& key)
   {
     using namespace boost::algorithm;
     unique_lock lock(var_map_mutex_ref());
     thread_info ti(BOOST_CURRENT_FUNCTION);    
     std::string local_varname(varname); trim(local_varname);
-    if(var_map_ref().find(local_varname)==var_map_ref().end())
+    if(var_map_ref(key).find(local_varname)==var_map_ref(key).end())
       return false;
     else return true;
   }
 
-  argument_vector list_vars()
+  argument_vector list_vars(const variable_map_stacks_key& key)
   {
     unique_lock lock(var_map_mutex_ref());
     thread_info ti(BOOST_CURRENT_FUNCTION);
     argument_vector vars;
-    BOOST_FOREACH(const variable_map::value_type& cur, var_map_ref())
+    BOOST_FOREACH(const variable_map::value_type& cur, var_map_ref(key))
       {
         std::string cur_varname = cur.first;
         boost::algorithm::trim(cur_varname);
@@ -284,25 +319,25 @@ namespace mkt
     return vars;
   }
 
-  void push_vars()
+  void push_vars(const variable_map_stacks_key& key)
   {
     unique_lock lock(var_map_mutex_ref());
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    var_map_push();
+    var_map_push(key);
   }
 
-  void pop_vars()
+  void pop_vars(const variable_map_stacks_key& key)
   {
     unique_lock lock(var_map_mutex_ref());
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    var_map_pop();
+    var_map_pop(key);
   }
 
-  size_t vars_stack_size()
+  size_t vars_stack_size(const variable_map_stacks_key& key)
   {
     unique_lock lock(var_map_mutex_ref());
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    return var_map_stack_size();    
+    return var_map_stack_size(key);    
   }
 
   map_change_signal var_changed;

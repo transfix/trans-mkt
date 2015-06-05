@@ -11,11 +11,12 @@ namespace mkt
   /*
    * Thread API
    */
-  typedef boost::shared_ptr<boost::thread>                   thread_ptr;
-  typedef std::map<std::string, thread_ptr>                  thread_map;
-  typedef std::map<boost::thread::id, double>                thread_progress_map;
-  typedef std::map<boost::thread::id, std::string>           thread_key_map;
-  typedef std::map<boost::thread::id, std::string>           thread_info_map;
+  typedef boost::shared_ptr<boost::thread>           thread_ptr;
+  typedef std::map<std::string, thread_ptr>          thread_map;
+  typedef boost::thread::id                          thread_id;
+  typedef std::map<thread_id, double>                thread_progress_map;
+  typedef std::map<thread_id, std::string>           thread_key_map;
+  typedef std::map<thread_id, std::string>           thread_info_map;
 
   extern map_change_signal threads_changed;
 
@@ -29,6 +30,7 @@ namespace mkt
   void thread_progress(const std::string& key, double progress);
   void finish_thread_progress(const std::string& key = std::string());
   std::string thread_key(); //returns the thread key for this thread
+  const std::string& threads_default_keyname();
   void remove_thread(const std::string& key);
   std::string unique_thread_key(const std::string& hint = std::string());
 

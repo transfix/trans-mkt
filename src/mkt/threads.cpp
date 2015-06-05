@@ -30,6 +30,7 @@ namespace
   };
   threads_data                 *_threads_data = 0;
   bool                          _threads_atexit = false;
+  const std::string             _threads_default_keyname("null");
 
   void _threads_cleanup()
   {
@@ -288,6 +289,11 @@ namespace mkt
 {
   map_change_signal threads_changed;
 
+  const std::string& threads_default_keyname()
+  {
+    return _threads_default_keyname;
+  }
+
   //Use this to trigger the threads_changed signal because
   //problems happen when signals are envoked during program start/exit due to static
   //initialization order.
@@ -445,7 +451,7 @@ namespace mkt
       if(thread_keys_ref().find(boost::this_thread::get_id())!=thread_keys_ref().end())
         return thread_keys_ref()[boost::this_thread::get_id()];
       else
-        return std::string("unknown");
+        return std::string(threads_default_keyname());
     }
   }
 

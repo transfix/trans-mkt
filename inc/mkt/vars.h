@@ -3,7 +3,11 @@
 
 #include <mkt/config.h>
 #include <mkt/types.h>
+#include <mkt/threads.h>
 #include <mkt/exceptions.h>
+
+#include <boost/tuple/tuple.hpp>
+#include <boost/tuple/tuple_comparison.hpp>
 
 #include <map>
 
@@ -12,15 +16,25 @@ namespace mkt
   /*
    * Variable API
    */
-  typedef std::map<std::string, std::string> variable_map;
-  std::string var(const std::string& varname);
-  void var(const std::string& varname, const std::string& val);
-  void unset_var(const std::string& varname);
-  bool has_var(const std::string& varname);
-  argument_vector list_vars();
-  void push_vars();
-  void pop_vars();
-  size_t vars_stack_size();
+  typedef std::map<std::string, std::string>        variable_map;
+  typedef std::vector<variable_map>                 variable_map_stack;
+  typedef boost::tuple<std::string, std::string>    variable_map_stacks_key;
+  typedef std::map<variable_map_stacks_key, 
+                   variable_map_stack>              variable_map_stacks;
+  const std::string& vars_main_stackname();
+  const variable_map_stacks_key& vars_variable_map_stacks_key_default();
+  std::string var(const std::string& varname,
+		  const variable_map_stacks_key& key = vars_variable_map_stacks_key_default());
+  void var(const std::string& varname, const std::string& val,
+	   const variable_map_stacks_key& key = vars_variable_map_stacks_key_default());
+  void unset_var(const std::string& varname,
+		 const variable_map_stacks_key& key = vars_variable_map_stacks_key_default());
+  bool has_var(const std::string& varname,
+	       const variable_map_stacks_key& key = vars_variable_map_stacks_key_default());
+  argument_vector list_vars(const variable_map_stacks_key& key = vars_variable_map_stacks_key_default());
+  void push_vars(const variable_map_stacks_key& key = vars_variable_map_stacks_key_default());
+  void pop_vars(const variable_map_stacks_key& key = vars_variable_map_stacks_key_default());
+  size_t vars_stack_size(const variable_map_stacks_key& key = vars_variable_map_stacks_key_default());
   extern map_change_signal var_changed;
 
   template <class T>
