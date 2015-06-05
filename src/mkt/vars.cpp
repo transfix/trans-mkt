@@ -103,8 +103,8 @@ namespace
 {
   struct vars_data
   {
-    mkt::variable_map           _var_map;
-    mkt::mutex                  _var_map_mutex;
+    std::vector<mkt::variable_map>  _var_map_stack;
+    mkt::mutex                      _var_map_mutex;
   };
   vars_data                    *_vars_data = 0;
   bool                          _vars_atexit = false;
@@ -129,12 +129,33 @@ namespace
 
     if(!_vars_data)
       throw mkt::vars_error("Missing static variable data!");
+
     return _vars_data;
   }
 
   mkt::variable_map& var_map_ref()
   {
-    return _get_vars_data()->_var_map;
+    if(_get_vars_data()->_var_map_stack.empty())
+      _get_vars_data()->_var_map_stack.push_back(mkt::variable_map());
+    return _get_vars_data()->_var_map_stack.back();
+  }
+
+  void var_map_push()
+  {
+    _get_vars_data()->_var_map_stack.push_back(var_map_ref());
+  }
+
+  void var_map_pop()
+  {
+    std::vector<mkt::variable_map> &vms = 
+      _get_vars_data()->_var_map_stack;
+    if(!vms.empty())
+      vms.pop_back();
+  }
+
+  size_t var_map_stack_size()
+  {
+    return _get_vars_data()->_var_map_stack.size();
   }
 
   mkt::mutex& var_map_mutex_ref()
@@ -261,6 +282,27 @@ namespace mkt
         vars.push_back(cur_varname);
       }
     return vars;
+  }
+
+  void push_vars()
+  {
+    unique_lock lock(var_map_mutex_ref());
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    var_map_push();
+  }
+
+  void pop_vars()
+  {
+    unique_lock lock(var_map_mutex_ref());
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    var_map_pop();
+  }
+
+  size_t vars_stack_size()
+  {
+    unique_lock lock(var_map_mutex_ref());
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    return var_map_stack_size();    
   }
 
   map_change_signal var_changed;

@@ -18,6 +18,9 @@ namespace mkt
   void unset_var(const std::string& varname);
   bool has_var(const std::string& varname);
   argument_vector list_vars();
+  void push_vars();
+  void pop_vars();
+  size_t vars_stack_size();
   extern map_change_signal var_changed;
 
   template <class T>
