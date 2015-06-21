@@ -19,7 +19,7 @@ namespace mkt
   typedef mkt::int64 transaction_id_t;
 
   extern map_change_signal assets_changed;
-  void init_accounts();
+  void init_accounts(); //call to initialize this module
   void exec_transaction(account_id_t to_account_id,
                         account_id_t from_account_id,
                         asset_id_t asset_id,

@@ -139,7 +139,7 @@ namespace mkt
 
     thread_info ti(BOOST_CURRENT_FUNCTION);
 
-    const string echo_functions_varname("__echo_functions");
+    const string echo_functions_varname("sys.echo_functions");
     string echo_functions_value = var(echo_functions_varname);
     mkt::argument_vector echo_functions_strings;
     split(echo_functions_strings, echo_functions_value, is_any_of(","), token_compress_on);
@@ -179,7 +179,7 @@ namespace mkt
   {
     using namespace boost;
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    if(os && !var<bool>("__echo_quiet")) 
+    if(os && !var<bool>("sys.echo_quiet")) 
       {
         (*os) << str;
       }
@@ -193,7 +193,7 @@ namespace mkt
 #ifdef MKT_USING_XMLRPC
     echo_register(2, mkt::do_remote_echo);
 #endif
-    var("__echo_functions", "0, 2");
+    var("sys.echo_functions", "0, 2");
   }
 
   bool echo_at_exit() { return _echo_atexit; }

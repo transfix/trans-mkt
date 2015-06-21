@@ -311,6 +311,7 @@ namespace mkt
     BOOST_FOREACH(std::string& arg, local_args)
       arg = expand_vars(arg);
 
+    //get the command function
     command cmd;
     {
       unique_lock lock(cmds_lock());
@@ -319,44 +320,57 @@ namespace mkt
         throw command_error(str(format("Invalid command: %1%") % cmd_str));
       cmd = cmds()[cmd_str];
     }
+
+    //finally call it
+    push_vars();
     cmd.get<0>()(local_args);
+    pop_vars();
   }
 
-  void ex(const std::string& cmd)
+  void ex(const std::string& cmd, bool escape)
   {
     using namespace std;
     using namespace boost;
     using namespace boost::algorithm;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    mkt::argument_vector args = mkt::split(cmd);
+    std::string local_cmd(cmd); trim(local_cmd);
+
+    //no-op for empty cmd lines and comments
+    if(local_cmd.empty() || local_cmd[0]=='#') return;
+
+    mkt::argument_vector args = mkt::split(local_cmd);
 
     //handle escape codes in each argument in the vector
-    typedef array<array<string, 2>, 8> codes_array;
-    codes_array codes =
+    if(escape)
       {
-        {
-          {"\\n", "\n"},
-          {"\\r", "\r"},
-          {"\\t", "\t"},
-          {"\\v", "\v"},
-          {"\\b", "\b"},
-          {"\\f", "\f"},
-          {"\\a", "\a"},
-          {"\\\\", "\\"},
-        }
-      };
-    BOOST_FOREACH(string& arg, args)
-      {
-        BOOST_FOREACH(codes_array::value_type& code_array, codes)
-          {
-            replace_all(arg, code_array[0], code_array[1]);
-          }
+	typedef array<array<string, 2>, 8> codes_array;
+	codes_array codes =
+	  {
+	    {
+	      {"\\n", "\n"},
+	      {"\\r", "\r"},
+	      {"\\t", "\t"},
+	      {"\\v", "\v"},
+	      {"\\b", "\b"},
+	      {"\\f", "\f"},
+	      {"\\a", "\a"},
+	      {"\\\\", "\\"},
+	    }
+	  };
+	BOOST_FOREACH(string& arg, args)
+	  {
+	    BOOST_FOREACH(codes_array::value_type& code_array, codes)
+	      {
+		replace_all(arg, code_array[0], code_array[1]);
+	      }
+	  }
       }
 
     mkt::exec(args);
   }
 
-  void exec_file(const argument_vector& file_args, bool parallel)
+  void exec_file(const argument_vector& file_args, bool parallel,
+		 bool escape)
   {
     using namespace std;
     using namespace boost;
@@ -384,9 +398,9 @@ namespace mkt
             if(line.empty() || line[0]=='#') continue;
 
             if(!parallel)
-              mkt::ex(line);
+              mkt::ex(line, escape);
             else
-              mkt::start_thread(line, boost::bind(mkt::ex, line));
+              mkt::start_thread(line, boost::bind(mkt::ex, line, escape));
           }
         catch(mkt::exception& e)
           {

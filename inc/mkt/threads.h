@@ -76,6 +76,8 @@ namespace mkt
         try
           {
             thread_feedback tf(BOOST_CURRENT_FUNCTION);
+	    //TODO: copy vars from calling thread's var map stack to this
+	    //one.
             _t();
           }
         catch(...)
@@ -87,7 +89,7 @@ namespace mkt
       T _t;
     };
 
-  //T is a class with operator()
+  //T is a function object
   template<class T>
   void start_thread(const std::string& key, const T& t, bool wait = true)
     {

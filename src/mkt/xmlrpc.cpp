@@ -200,10 +200,19 @@ namespace
     syncer(const std::string& v, 
            const std::string& h)
       : _varname(v), _host(h) {}
-    void operator()(const std::string& in_var)
+    void operator()(const std::string& in_var,
+		    const mkt::var_context& context)
     {
       using namespace boost::algorithm;
       if(_varname != in_var) return;
+
+      //For now, don't sync vars that change from any other stack
+      //level other than the deepest. Also, don't sync if it's a
+      //var change outside of the main thread's default stack.
+      //TODO: change this when we make the set command support setting
+      //vars in other parts of the stack and with different keys.
+      if(context != mkt::var_context())
+	return;
       
       std::string val = mkt::var(in_var);
 

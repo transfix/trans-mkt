@@ -30,11 +30,12 @@ namespace mkt
   void exec(const argument_vector& args);
   
   //Executes a command first splitting up a single string into arguments.
-  void ex(const std::string& cmd);
+  void ex(const std::string& cmd, bool escape = true);
 
   //Executes commands listed in a file where the first argument is the filename. 
   //If parallel is true, commands are executed in separate threads.
-  void exec_file(const argument_vector& args, bool parallel = false);
+  void exec_file(const argument_vector& args, bool parallel = false, 
+		 bool escape = true);
 
   //Use this to determine if this module sees that the program is quitting. 
   //Trying to execute a command at that time will result in an exception 

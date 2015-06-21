@@ -146,9 +146,9 @@ namespace
     mkt::out().stream() << "Account " 
                         << account_id 
                         << " initialized." << std::endl;
+    
+    mkt::var("_", account_id); //return the account_id
   }
-
-  
 
   class init_commands
   {

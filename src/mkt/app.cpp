@@ -27,9 +27,9 @@ namespace mkt
   {
     using namespace boost;
     argument_vector av;
-    int argc = mkt::var<int>("__argc");
+    int argc = mkt::var<int>("sys.argc");
     for(int i = 0; i < argc; i++)
-      av.push_back(mkt::var(str(format("__argv_%1%") % i)));
+      av.push_back(mkt::var(str(format("sys.argv_%1%") % i)));
     return av;
   }
 
@@ -37,9 +37,9 @@ namespace mkt
   {
     using namespace boost;
     mkt::argument_vector args;
-    mkt::var("__argc", argc);
+    mkt::var("sys.argc", argc);
     for(int i = 0; i < argc; i++)
-      mkt::var(str(format("__argv_%1%") % i), argv[i]);
+      mkt::var(str(format("sys.argv_%1%") % i), argv[i]);
   }
 
   bool at_exit()
