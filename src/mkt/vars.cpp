@@ -211,7 +211,10 @@ namespace
     //copy to the new stack level
     mkt::variable_map lower_vm = var_map_ref(mkt::var_context(0,key));
     BOOST_FOREACH(const mkt::variable_map::value_type& cur, vm)
-      lower_vm[cur.first] = cur.second;
+      {
+	lower_vm[cur.first] = cur.second;
+      }
+    var_map_ref(mkt::var_context(0,key)) = lower_vm;
   }
 
   mkt::mutex& var_map_mutex_ref()
@@ -228,9 +231,8 @@ namespace
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     if(args.size()<2) 
       throw mkt::command_error("Missing variable argument.");
-    mkt::out().stream() 
-      << (mkt::has_var(args[1], mkt::var_context(1)) ? "true" : "false") 
-      << std::endl;
+    bool val = mkt::has_var(args[1], mkt::var_context(1));
+    mkt::ret_val(val);
   }
 
   void pop(const mkt::argument_vector& args)
@@ -257,18 +259,32 @@ namespace
     //stack frame above this one as they are. 
     if(args.size() == 1)
       {
-        mkt::argument_vector vars = mkt::list_vars(1);
+        mkt::argument_vector vars = mkt::list_vars(mkt::var_context(1));
         BOOST_FOREACH(const mkt::var_string& cur_var, vars)
           {
             mkt::out().stream() 
 	      << "set " << cur_var 
 	      << " \"" << mkt::var(cur_var, mkt::var_context(1)) << "\"" << std::endl;
           }
+	mkt::ret_val("");
+	return;
       }
     else if(args.size() == 2)
       mkt::var(args[1], "", mkt::var_context(1)); //create an empty variable
     else
       mkt::var(args[1], args[2], mkt::var_context(1)); //actually do an assignment operation
+    
+    //Erase this stack frame so vars don't get promoted upwards and erase the
+    //globals set via this command.
+    //TODO: this all doesn't sit well with me... fix it!!!!!!!
+    mkt::argument_vector vars = mkt::list_vars(mkt::var_context(0));
+    BOOST_FOREACH(const mkt::var_string& cur_var, vars)
+      {
+	mkt::unset_var(cur_var, mkt::var_context(0));
+      }
+
+    //return the value that was set
+    mkt::ret_val(mkt::var(args[1], mkt::var_context(1)));
   }
 
   void unset(const mkt::argument_vector& args)
@@ -331,7 +347,7 @@ namespace mkt
     {
       unique_lock lock(var_map_mutex_ref());
       var_string local_varname(varname); trim(local_varname);
-      var_string local_val(val); trim(local_val);
+      var_string local_val(val);
       variable_map& vm = var_map_ref(context);
       if(vm[local_varname] == local_val) return; //nothing to do
       vm[local_varname] = local_val;
@@ -399,13 +415,6 @@ namespace mkt
     unique_lock lock(var_map_mutex_ref());
     thread_info ti(BOOST_CURRENT_FUNCTION);
     return var_map_stack_size(key);    
-  }
-
-  //use this to set the return value of the current command
-  void ret_val(const var_string& val)
-  {
-    thread_info ti(BOOST_CURRENT_FUNCTION);
-    var("_", val);
   }
 
   var_change_signal var_changed;

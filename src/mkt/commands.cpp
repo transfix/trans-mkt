@@ -76,6 +76,12 @@ namespace
   {
     return _get_commands_data()->_commands_lock;
   }
+
+  void cmd_restore_prompt()
+  {
+    if(!mkt::has_var("PS1") || mkt::var("PS1") == "")
+      mkt::var("PS1", "mkt> "); //default prompt
+  }
 }
 
 //Default system commands
@@ -87,8 +93,10 @@ namespace
     using namespace std;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
 
+    cmd_restore_prompt();
+
     char *line;
-    while((line = readline("mkt> ")))
+    while(line = readline(mkt::expand_vars(mkt::var("PS1")).c_str()))
       {
         std::string str_line(line);
         add_history(line);
@@ -108,6 +116,13 @@ namespace
                 << e.what_str() 
                 << endl;
           }
+
+	//output the contents of the retval to the output stream
+	mkt::var_string rv = mkt::var("_");
+	if(!rv.empty())
+	  mkt::out().stream() << rv << endl;
+
+	cmd_restore_prompt();
       }
 #else
     throw mkt::command_error("interactive mode unsupported");
@@ -307,6 +322,7 @@ namespace mkt
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     if(args.empty()) throw command_error("Missing command string");
 
+    //do variable expansion
     argument_vector local_args = args;
     BOOST_FOREACH(std::string& arg, local_args)
       arg = expand_vars(arg);
@@ -323,6 +339,7 @@ namespace mkt
 
     //finally call it
     push_vars();
+    var("_", ""); //reset the return val for this stack frame
     cmd.get<0>()(local_args);
     pop_vars();
   }

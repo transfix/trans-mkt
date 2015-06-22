@@ -82,7 +82,6 @@ namespace mkt
   void push_vars(const vms_key& key = vms_key_def());
   void pop_vars(const vms_key& key = vms_key_def());
   size_t vars_stack_size(const vms_key& key = vms_key_def());
-  void ret_val(const var_string& val); //sets the return value for the current command
 
   typedef boost::
     signals2::
@@ -93,6 +92,7 @@ namespace mkt
   template <class T>
     inline T string_cast(const var_string& str_val)
     {
+      thread_info ti(BOOST_CURRENT_FUNCTION);
       using namespace boost;
       T val;
       try
@@ -111,6 +111,7 @@ namespace mkt
   template <class T>
     inline T var(const var_string& varname)
     {
+      thread_info ti(BOOST_CURRENT_FUNCTION);
       using namespace boost;
       T val;
       var_string str_val = var(varname);
@@ -129,6 +130,7 @@ namespace mkt
   template <class T>
     inline void var(const var_string& varname, const T& val)
     {
+      thread_info ti(BOOST_CURRENT_FUNCTION);
       var_string str_val;
       try
         {
@@ -146,6 +148,7 @@ namespace mkt
   template <> 
     inline bool var<bool>(const var_string& varname)
     {
+      thread_info ti(BOOST_CURRENT_FUNCTION);
       var_string str_var = var(varname);
       if(str_var.empty()) return false;
       if(str_var == "true") return true;
@@ -157,8 +160,17 @@ namespace mkt
   template <>
     inline void var<bool>(const var_string& varname, const bool& val)
     {
+      thread_info ti(BOOST_CURRENT_FUNCTION);
       var_string str_val = val ? "true" : "false";
       var(varname, str_val);
+    }
+
+  //sets the return value for the current command
+  template<class T>
+    inline void ret_val(const T& val)
+    {
+      thread_info ti(BOOST_CURRENT_FUNCTION);
+      var("_", val);
     }
 
   //Splits a string into an argument vector, taking into account
