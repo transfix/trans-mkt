@@ -1,7 +1,8 @@
+#include <xch/assets.h>
+
 #include <mkt/commands.h>
 #include <mkt/echo.h>
 #include <mkt/threads.h>
-#include <mkt/assets.h>
 
 #include <boost/lexical_cast.hpp>
 #include <boost/current_function.hpp>
@@ -12,7 +13,7 @@
  */
  
 //This module's exceptions
-namespace mkt
+namespace xch 
 {
   MKT_DEF_EXCEPTION(assets_error);
 }
@@ -22,9 +23,9 @@ namespace
 {
   struct assets_data
   {
-    mkt::asset_map          _asset_map;
-    mkt::reverse_asset_map  _reverse_asset_map;
-    mkt::mutex              _asset_map_mutex;
+    xch::asset_map          _asset_map;
+    xch::reverse_asset_map  _reverse_asset_map;
+    xch::mutex              _asset_map_mutex;
   };
   assets_data              *_assets_data = 0;
   bool                      _assets_atexit = false;
@@ -39,7 +40,7 @@ namespace
   assets_data* _get_assets_data()
   {
     if(_assets_atexit)
-      throw mkt::assets_error("Already at program exit!");
+      throw xch::assets_error("Already at program exit!");
 
     if(!_assets_data)
       {
@@ -48,21 +49,21 @@ namespace
       }
 
     if(!_assets_data)
-      throw mkt::assets_error("Missing static variable data!");
+      throw xch::assets_error("Missing static variable data!");
     return _assets_data;
   }
 
-  mkt::asset_map& asset_map_ref()
+  xch::asset_map& asset_map_ref()
   {
     return _get_assets_data()->_asset_map;
   }
 
-  mkt::reverse_asset_map& reverse_asset_map_ref()
+  xch::reverse_asset_map& reverse_asset_map_ref()
   {
     return _get_assets_data()->_reverse_asset_map;
   }
 
-  mkt::mutex& asset_map_mutex_ref()
+  xch::mutex& asset_map_mutex_ref()
   {
     return _get_assets_data()->_asset_map_mutex;
   }
@@ -76,20 +77,20 @@ namespace
     mkt::argument_vector local_args = args;
     local_args.erase(local_args.begin()); //remove the command string
     if(local_args.size() < 2)
-      throw mkt::assets_error("Missing asset name and/or asset id arguments");
+      throw xch::assets_error("Missing asset name and/or asset id arguments");
     std::string asset_name = local_args[0];
-    mkt::asset_id_t asset_id = -1;
+    xch::asset_id_t asset_id = -1;
     try
       {
-        asset_id = boost::lexical_cast<mkt::asset_id_t>(local_args[1]);
+        asset_id = boost::lexical_cast<xch::asset_id_t>(local_args[1]);
       }
     catch(boost::bad_lexical_cast&)
       {
-        throw mkt::assets_error("Invalid asset id argument");
+        throw xch::assets_error("Invalid asset id argument");
       }
     if(asset_name == "null")
-      throw mkt::assets_error("Asset name cannot be 'null'");
-    mkt::set_asset_id(asset_name, asset_id);
+      throw xch::assets_error("Asset name cannot be 'null'");
+    xch::set_asset_id(asset_name, asset_id);
   }
 
   void get_asset_id(const mkt::argument_vector& args)
@@ -98,8 +99,8 @@ namespace
     mkt::argument_vector local_args = args;
     local_args.erase(local_args.begin()); //remove the command string
     if(local_args.empty())
-      throw mkt::assets_error("Missing asset name argument");
-    mkt::out().stream() << mkt::get_asset_id(local_args[0]) << std::endl;
+      throw xch::assets_error("Missing asset name argument");
+    mkt::out().stream() << xch::get_asset_id(local_args[0]) << std::endl;
   }
 
   void get_asset_name(const mkt::argument_vector& args)
@@ -108,27 +109,27 @@ namespace
     mkt::argument_vector local_args = args;
     local_args.erase(local_args.begin()); //remove the command string
     if(local_args.empty())
-      throw mkt::assets_error("Missing asset id argument");
-    mkt::asset_id_t asset_id = -1;
+      throw xch::assets_error("Missing asset id argument");
+    xch::asset_id_t asset_id = -1;
     try
       {
-        asset_id = boost::lexical_cast<mkt::asset_id_t>(local_args[0]);
+        asset_id = boost::lexical_cast<xch::asset_id_t>(local_args[0]);
       }
     catch(boost::bad_lexical_cast&)
       {
-        throw mkt::assets_error("Invalid asset id argument");
+        throw xch::assets_error("Invalid asset id argument");
       }
-    mkt::out().stream() << mkt::get_asset_name(asset_id) << std::endl;
+    mkt::out().stream() << xch::get_asset_name(asset_id) << std::endl;
   }
 
   void get_assets(const mkt::argument_vector& args)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    std::vector<std::string> names = mkt::get_asset_names();
+    std::vector<std::string> names = xch::get_asset_names();
     BOOST_FOREACH(std::string& name, names)
       mkt::out().stream() << name 
                           << " -> " 
-                          << mkt::get_asset_id(name) << std::endl;
+                          << xch::get_asset_id(name) << std::endl;
   }
 
   void has_asset(const mkt::argument_vector& args)
@@ -137,21 +138,21 @@ namespace
     mkt::argument_vector local_args = args;
     local_args.erase(local_args.begin()); //remove the command string
     if(local_args.empty())
-      throw mkt::assets_error("Missing asset id or asset name argument");
+      throw xch::assets_error("Missing asset id or asset name argument");
 
-    mkt::asset_id_t asset_id = -1;
+    xch::asset_id_t asset_id = -1;
     std::string asset_name("null");
     try
       {
-        asset_id = boost::lexical_cast<mkt::asset_id_t>(local_args[0]);
+        asset_id = boost::lexical_cast<xch::asset_id_t>(local_args[0]);
       }
     catch(boost::bad_lexical_cast&)
       {
         asset_name = local_args[0];
       }
 
-    bool flag = mkt::has_asset(asset_id) || 
-      mkt::has_asset(asset_name);
+    bool flag = xch::has_asset(asset_id) || 
+      xch::has_asset(asset_name);
     mkt::out().stream() << (flag ? "true" : "false") << std::endl;
   }
 
@@ -161,19 +162,19 @@ namespace
     mkt::argument_vector local_args = args;
     local_args.erase(local_args.begin()); //remove the command string
     if(local_args.empty())
-      throw mkt::assets_error("Missing asset id or asset name argument");
+      throw xch::assets_error("Missing asset id or asset name argument");
 
-    mkt::asset_id_t asset_id = -1;
+    xch::asset_id_t asset_id = -1;
     std::string asset_name("null");
     try
       {
-        asset_id = boost::lexical_cast<mkt::asset_id_t>(local_args[0]);
-        mkt::remove_asset(asset_id);
+        asset_id = boost::lexical_cast<xch::asset_id_t>(local_args[0]);
+        xch::remove_asset(asset_id);
       }
     catch(boost::bad_lexical_cast&)
       {
         asset_name = local_args[0];
-        mkt::remove_asset(asset_name);
+        xch::remove_asset(asset_name);
       }    
   }
 
@@ -203,7 +204,7 @@ namespace
 }
 
 //assets API impelmentation
-namespace mkt
+namespace xch 
 {
   map_change_signal assets_changed;
 
@@ -217,8 +218,8 @@ namespace mkt
     using namespace boost;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     if(has_asset(asset_id))
-      throw mkt::assets_error(str(format("There is already an asset with id %1%")
-                                  % asset_id));
+      throw assets_error(str(format("There is already an asset with id %1%")
+                             % asset_id));
 
     remove_asset(asset_name);
     

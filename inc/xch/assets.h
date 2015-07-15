@@ -1,8 +1,8 @@
-#ifndef __MKT_ASSETS_H__
-#define __MKT_ASSETS_H__
+#ifndef __XCH_ASSETS_H__
+#define __XCH_ASSETS_H__
 
-#include <mkt/config.h>
-#include <mkt/types.h>
+#include <xch/types.h>
+
 #include <mkt/exceptions.h>
 
 #include <map>
@@ -11,12 +11,12 @@
 /*
   Asset API
  */
-namespace mkt
+namespace xch 
 {
-  typedef mkt::int64 asset_id_t;
+  typedef mkt::int64                         asset_id_t;
   typedef std::map<std::string, asset_id_t>  asset_map;
   typedef std::map<asset_id_t, std::string>  reverse_asset_map;
-  extern map_change_signal assets_changed;
+  extern  mkt::map_change_signal             assets_changed;
   void init_assets();
   void set_asset_id(const std::string& asset_name, asset_id_t asset_id);
   asset_id_t get_asset_id(const std::string& asset_name);

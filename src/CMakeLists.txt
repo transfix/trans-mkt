@@ -10,3 +10,4 @@ endif(MKT_INTERACTIVE)
 
 add_subdirectory(xmlrpc)
 add_subdirectory(mkt)
+add_subdirectory(xch)

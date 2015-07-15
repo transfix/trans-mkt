@@ -1,3 +1,6 @@
+#include <xch/assets.h>
+#include <xch/accounts.h>
+
 #include <mkt/app.h>
 #include <mkt/commands.h>
 #include <mkt/threads.h>
@@ -25,337 +28,8 @@
 #include <algorithm>
 #include <limits>
 
-namespace mkt
+namespace xch
 {
-  typedef std::map<std::string, int64>  asset_map;
-  asset_map                             _assets; //map of asset names to asset ids
-  mutex                                 _asset_map_mutex;
-
-  asset_map get_assets()
-  {
-    shared_lock lock(_asset_map_mutex);
-    return _assets;
-  }
-
-  void set_assets(asset_map am)
-  {
-    unique_lock lock(_asset_map_mutex);
-    _assets = am;
-  }
-
-  void set_asset_id(const std::string& asset_name, int64 asset_id)
-  {
-    unique_lock lock(_asset_map_mutex);
-    _assets[asset_name] = asset_id;
-  }
-
-  int64 get_asset_id(const std::string& asset_name)
-  {
-    shared_lock lock(_asset_map_mutex);
-    return _assets[asset_name]; 
-  }
-
-  std::vector<std::string> get_asset_names()
-  {
-    shared_lock lock(_asset_map_mutex);
-    std::vector<std::string> names;
-    BOOST_FOREACH(asset_map::value_type& cur, _assets)
-      names.push_back(cur.first);
-    return names;
-  }
-
-  MKT_DEF_EXCEPTION(account_error);
-  
-  class accounts
-  {
-  public:
-    static void exec_transaction(int64 to_account_id,
-				 int64 from_account_id,
-				 int64 asset_id,
-				 double amount);
-    static void init_account(int64 account_id);
-    static double balance(int64 account_id, int64 asset_id);
-    static bool has_account(int64 account_id);
-    static std::vector<int64> get_account_ids();
-    static int64 get_unique_id();
-
-    static boost::signals2::signal<void (int64)>  account_changed;
-
-    class transaction
-    {
-    public:
-      transaction(ptime cur_time = boost::posix_time::min_date_time, 
-                  int64 to_account_id = -1,
-                  int64 from_account_id = -1, 
-                  int64 asset_id = -1,
-                  double amount = 0.0)
-        : _cur_time(cur_time), _to_account_id(to_account_id),
-          _from_account_id(from_account_id), _asset_id(asset_id),
-          _amount(amount), 
-          _transaction_id(get_next_transaction_id()) {}
-
-      transaction(const transaction& rhs)
-        : _cur_time(rhs._cur_time), _to_account_id(rhs._to_account_id),
-          _from_account_id(rhs._from_account_id), _asset_id(rhs._asset_id),
-          _amount(rhs._amount), 
-          _transaction_id(rhs._transaction_id) {}
-
-      transaction& operator=(const transaction& rhs)
-      {
-        if(this == &rhs) return *this;
-        _cur_time = rhs._cur_time;
-        _to_account_id = rhs._to_account_id;
-        _from_account_id = rhs._from_account_id;
-        _asset_id = rhs._asset_id;
-        _amount = rhs._amount;
-        _transaction_id = rhs._transaction_id;
-        return *this;
-      }
-
-      ptime cur_time() const { return _cur_time; }
-      int64 to_account_id() const { return _to_account_id; }
-      int64 from_account_id() const { return _from_account_id; }
-      int64 asset_id() const { return _asset_id; }
-      int64 amount() const { return _amount; }
-      int64 id() const { return _transaction_id; }
-
-      static int64 get_next_transaction_id()
-      {
-        static int64 id = 0;
-        static mutex local_mutex;
-        unique_lock lock(local_mutex);
-        return id++;
-      }
-
-    private:
-      ptime _cur_time;
-      int64 _to_account_id;
-      int64 _from_account_id;
-      int64 _asset_id;
-      int64 _amount;
-      int64 _transaction_id;
-    };
-
-    struct transaction_query
-    {
-      transaction_query(ptime b = boost::posix_time::min_date_time,
-			ptime e = boost::posix_time::max_date_time,
-			int64 tid = -1,
-			int64 fid = -1,
-			int64 aid = -1,
-			double min_a = -std::numeric_limits<double>::max(),
-			double max_a = std::numeric_limits<double>::max())
-	: _begin(b), _end(e), 
-	  _to_account_id(tid), _from_account_id(fid),
-	  _asset_id(aid), _min_amount(min_a), _max_amount(max_a) {}
-
-      transaction_query(const transaction_query& rhs)
-	: _begin(rhs._begin), _end(rhs._end),
-	  _to_account_id(rhs._to_account_id), _from_account_id(rhs._from_account_id),
-	  _asset_id(rhs._asset_id), _min_amount(rhs._min_amount), _max_amount(rhs._max_amount) {}
-
-      transaction_query& operator=(const transaction_query& rhs)
-      {
-	if(this == &rhs) return *this;
-	_begin = rhs._begin;
-	_end = rhs._end;
-	_to_account_id = rhs._to_account_id;
-	_from_account_id = rhs._from_account_id;
-	_asset_id = rhs._asset_id;
-	_min_amount = rhs._min_amount;
-	_max_amount = rhs._max_amount;
-	return *this;
-      }
-      
-      transaction_query& begin(ptime b) { _begin = b; return *this; }
-      transaction_query& end(ptime e) { _end = e; return *this; }
-      transaction_query& to_account_id(int64 tid) { _to_account_id = tid; return *this; }
-      transaction_query& from_account_id(int64 fid) { _from_account_id; return *this; }
-      transaction_query& asset_id(int64 aid) { _asset_id = aid; return *this; }
-      transaction_query& min_amount(int64 min_a) { _min_amount = min_a; return *this; }
-      transaction_query& max_amount(int64 max_a) { _max_amount = max_a; return *this; }
-
-    private:
-      ptime  _begin;
-      ptime  _end;
-      int64  _to_account_id;
-      int64  _from_account_id;
-      int64  _asset_id;
-      double _min_amount;
-      double _max_amount;      
-      friend class accounts;
-    };
-
-    //returns a list of transactions from the transaction history based on the
-    //parameters.  With no parameters it will return all transactions.
-    std::vector<transaction> get_transactions(const transaction_query& params = 
-					      transaction_query());
-    
-  private:
-    typedef std::map<int64, double>           balances;           //map key is asset ID
-    typedef std::map<int64, balances>         account_map;        //map key is account ID
-    typedef std::multimap<ptime, transaction> transaction_map;    //map key is transaction time
-    typedef std::map<int64, transaction>      transaction_id_map; //map key is transaction id
-
-    static account_map                       _account_map;
-    static transaction_map                   _transaction_history;
-    static transaction_id_map                _transactions;
-    static mutex                             _account_map_mutex;
-
-    accounts();
-    accounts(const accounts&);
-  };
-  
-  boost::signals2::signal<void (int64)>  accounts::account_changed;
-  accounts::account_map                  accounts::_account_map;
-  accounts::transaction_map              accounts::_transaction_history;
-  accounts::transaction_id_map           accounts::_transactions;
-  mutex                                  accounts::_account_map_mutex;
-  
-  void accounts::exec_transaction(int64 to_account_id,
-				  int64 from_account_id,
-				  int64 asset_id,
-				  double amount)
-  {
-    {
-      using namespace boost;
-      unique_lock lock(_account_map_mutex);
-
-      if(from_account_id >= 0 &&
-	 _account_map.find(from_account_id) == _account_map.end())
-	throw account_error(str(format("invalid from_account_id %1%")
-				% to_account_id));
-      if(_account_map.find(to_account_id) == _account_map.end())
-	throw account_error(str(format("invalid to_account_id %1%")
-				% to_account_id));
-      if(from_account_id == to_account_id)
-	throw account_error("to_account_id == from_account_id");
-
-      //a from_account_id less than zero creates money from nothing
-      double from_account_balance = 
-	from_account_id >= 0 ? 
-	_account_map[from_account_id][asset_id] : amount;
-      double to_account_balance = _account_map[to_account_id][asset_id];
-
-      from_account_balance -= amount;
-      to_account_balance += amount;
-
-      //do not support negative balances
-      if(from_account_balance < 0.0)
-	throw account_error(str(format("not enough funds in account %1%") 
-				% from_account_id));
-
-      //everything is ok, lets set the new balances now
-      if(from_account_id >= 0)
-	_account_map[from_account_id][asset_id] = from_account_balance;
-      _account_map[to_account_id][asset_id] = to_account_balance;
-
-      ptime cur_time = boost::posix_time::microsec_clock::universal_time();
-      transaction t(cur_time, to_account_id, from_account_id, asset_id, amount);
-      _transaction_history.insert(transaction_map::value_type(cur_time, t));
-      _transactions[t.id()] = t;
-    }
-
-    if(from_account_id >= 0) account_changed(from_account_id);
-    account_changed(to_account_id);
-  }
-
-  //initializes an account with zero balances for all assets known by the system
-  void accounts::init_account(int64 account_id)
-  {
-    using namespace boost;
-    if(account_id < 0) 
-      throw account_error(str(format("invalid account_id %1%")
-			      % account_id));
-    asset_map assets = get_assets();
-    {
-      unique_lock lock(_account_map_mutex);
-      ptime cur_time = boost::posix_time::microsec_clock::universal_time();
-      BOOST_FOREACH(asset_map::value_type& cur, assets)
-	{
-	  int64 asset_id = cur.second;
-	  _account_map[account_id][asset_id] = 0.0;
-	  transaction t(cur_time, account_id, -1, asset_id, 0.0);
-	  _transaction_history.insert(transaction_map::value_type(cur_time, t));
-	  _transactions[t.id()] = t;
-	}
-    }
-    
-    account_changed(account_id);
-  }
-
-  //returns balance for account/asset pair.
-  double accounts::balance(int64 account_id, int64 asset_id)
-  {
-    using namespace boost;
-    shared_lock lock(_account_map_mutex);
-    if(_account_map.find(account_id) == _account_map.end())
-      throw account_error(str(format("invalid account_id %1%")
-			      % account_id));
-    return _account_map[account_id][asset_id];
-  }
-
-  bool accounts::has_account(int64 account_id)
-  {
-    shared_lock lock(_account_map_mutex);
-    return _account_map.find(account_id) != _account_map.end();
-  }
-
-  std::vector<int64> accounts::get_account_ids()
-  {
-    shared_lock lock(_account_map_mutex);
-    std::vector<int64> ids;
-    BOOST_FOREACH(const account_map::value_type& cur, _account_map)
-      ids.push_back(cur.first);
-    return ids;
-  }
-
-  int64 accounts::get_unique_id()
-  {
-    using namespace std;
-    int64 account_id = -1;
-    srand(time(0));
-    do
-      {
-	account_id = rand();
-      }
-    while(has_account(account_id));
-    return account_id;
-  }
-
-  std::vector<accounts::transaction> accounts::get_transactions(const transaction_query& params)
-  {
-    shared_lock lock(_account_map_mutex);
-    
-    std::vector<transaction> transactions;
-    transaction_map::iterator earliest_iter =
-      _transaction_history.lower_bound(params._begin);
-    transaction_map::iterator latest_iter =
-      _transaction_history.upper_bound(params._end);
-    for(transaction_map::iterator i = earliest_iter;
-	i != latest_iter;
-	++i)
-      {
-	transaction& t = i->second;
-	if(params._to_account_id != -1 &&
-	   params._to_account_id != t.to_account_id())
-	  continue;
-	if(params._from_account_id != -1 &&
-	   params._from_account_id != t.from_account_id())
-	  continue;
-	if(params._asset_id != -1 &&
-	   params._asset_id != t.asset_id())
-	  continue;
-	if(params._min_amount > t.amount())
-	  continue;
-	if(params._max_amount < t.amount())
-	  continue;
-	transactions.push_back(t);
-      }
-      
-    return transactions;
-  }
-
   ///////// -------- market
 
   MKT_DEF_EXCEPTION(market_error);
@@ -509,9 +183,9 @@ namespace mkt
   market::market(int64 oaid, int64 paid)
     : _order_asset_id(oaid), _payment_asset_id(paid),
       _ask_fee(0.1), _bid_fee(0.1), //TODO: set fees via system var
-      _account_id(mkt::accounts::get_unique_id())
+      _account_id(xch::get_unique_account_id())
   {
-    accounts::init_account(_account_id); //account to collect fees with
+    init_account(_account_id); //account to collect fees with
   }
   
   int64 market::add_order(order_type ot, int64 account_id, 
@@ -947,23 +621,23 @@ namespace mkt
 	//TODO: add this to a queue and process later (maybe in another thread)
 
 	//fees
-	accounts::exec_transaction(_account_id,
-				   max_bid_ptr->account_id(),
-				   _payment_asset_id,
-				   dv_cost_fee);
-	accounts::exec_transaction(_account_id,
-				   min_ask_ptr->account_id(),
-				   _order_asset_id,
-				   dv_fee);
+	exec_transaction(_account_id,
+			 max_bid_ptr->account_id(),
+			 _payment_asset_id,
+			 dv_cost_fee);
+	exec_transaction(_account_id,
+			 min_ask_ptr->account_id(),
+			 _order_asset_id,
+			 dv_fee);
 	//actual transaction
-	accounts::exec_transaction(min_ask_ptr->account_id(),
-				   max_bid_ptr->account_id(),
-				   _payment_asset_id,
-				   dv_cost);
-	accounts::exec_transaction(max_bid_ptr->account_id(),
-				   min_ask_ptr->account_id(),
-				   _order_asset_id,
-				   dv);
+	exec_transaction(min_ask_ptr->account_id(),
+			 max_bid_ptr->account_id(),
+			 _payment_asset_id,
+			 dv_cost);
+	exec_transaction(max_bid_ptr->account_id(),
+			 min_ask_ptr->account_id(),
+			 _order_asset_id,
+			 dv);
 
 	//send a signal about the trade
 	trade_executed(exec_price, dv);
@@ -1185,7 +859,7 @@ namespace
   //sell - post an ask limit order
   //
 
-  void set_asset_id(const mkt::argument_vector& av)
+  void set_asset_id(const xch::argument_vector& av)
   {
     
   }
@@ -1209,14 +883,14 @@ namespace
 
 void print_accounts()
 {
-  std::vector<mkt::int64> account_ids = mkt::accounts::get_account_ids();
-  std::vector<std::string> asset_names = mkt::get_asset_names();
+  std::vector<mkt::int64> account_ids = xch::get_account_ids();
+  std::vector<std::string> asset_names = xch::get_asset_names();
   BOOST_FOREACH(mkt::int64 id, account_ids)
     {
       std::cout << "id: " << id << std::endl;
       BOOST_FOREACH(std::string& asset_name, asset_names)
 	std::cout << "\tasset: " << asset_name << " " << "balance: " 
-		  << mkt::accounts::balance(id, mkt::get_asset_id(asset_name)) << std::endl;
+		  << xch::balance(id, xch::get_asset_id(asset_name)) << std::endl;
     }
 }
 
@@ -1228,26 +902,26 @@ int main(int argc, char **argv)
   mkt::argv(argc, argv);
 
   //debug
-  mkt::set_asset_id("XBT", 31337);
-  mkt::set_asset_id("XDG", 31338);
-  mkt::set_asset_id("XBC", 31339);
+  xch::set_asset_id("XBT", 31337);
+  xch::set_asset_id("XDG", 31338);
+  xch::set_asset_id("XBC", 31339);
 
   for(int i = 0; i < 5; i++)
-    mkt::accounts::init_account(mkt::accounts::get_unique_id());
+    xch::init_account(xch::get_unique_account_id());
 
 #if 0
   //init accounts with some random balance
-  std::vector<mkt::int64> account_ids = mkt::accounts::get_account_ids();
+  std::vector<mkt::int64> account_ids = xch::get_account_ids();
   BOOST_FOREACH(mkt::int64 id, account_ids)
-    mkt::accounts::exec_transaction(id, -1, mkt::get_asset_id("XBT"), (rand() % 666)/333.0);
+    xch::exec_transaction(id, -1, mkt::get_asset_id("XBT"), (rand() % 666)/333.0);
   print_accounts();
 
-  mkt::accounts::exec_transaction(account_ids[0], account_ids[1], 
+  xch::exec_transaction(account_ids[0], account_ids[1], 
 				  mkt::get_asset_id("XBT"), 
-				  mkt::accounts::balance(account_ids[1], mkt::get_asset_id("XBT")));
+				  xch::balance(account_ids[1], mkt::get_asset_id("XBT")));
   print_accounts();
 #endif
-  std::vector<mkt::int64> account_ids = mkt::accounts::get_account_ids();
+  std::vector<mkt::int64> account_ids = xch::get_account_ids();
 
   try
     {

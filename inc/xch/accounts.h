@@ -1,10 +1,7 @@
-#ifndef __MKT_ACCOUNTS_H__
-#define __MKT_ACCOUNTS_H__
+#ifndef __XCH_ACCOUNTS_H__
+#define __XCH_ACCOUNTS_H__
 
-#include <mkt/config.h>
-#include <mkt/types.h>
-#include <mkt/exceptions.h>
-#include <mkt/assets.h>
+#include <xch/assets.h>
 
 #include <map>
 #include <vector>
@@ -13,12 +10,12 @@
 /*
   Account API
  */
-namespace mkt
+namespace xch 
 {
-  typedef mkt::int64 account_id_t;
-  typedef mkt::int64 transaction_id_t;
+  typedef mkt::int64            account_id_t;
+  typedef mkt::int64            transaction_id_t;
 
-  extern map_change_signal assets_changed;
+  extern mkt::map_change_signal assets_changed;
   void init_accounts(); //call to initialize this module
   void exec_transaction(account_id_t to_account_id,
                         account_id_t from_account_id,

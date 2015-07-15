@@ -1,0 +1,25 @@
+# Canonical test script for mkt-core 
+# transfix@sublevels.net 20150620
+
+import xch
+
+define init_assets as serial                      \
+  set btc_id 31337 then                           \
+  set catx_id 31338 then                          \
+  if not has_asset btc then                       \
+    set_asset_id btc $btc_id                      \
+  endif then                                      \
+  if not has_asset catx then                      \
+    set_asset_id catx $catx_id                    \
+  endif                                           \
+enddef
+
+define setup_account as serial                    \
+  init_account then                               \
+  set _account_id $_ then                         \
+  set account_${_account_id}.name $_arg_0 then    \
+  set account_${_account_id}.email $_arg_1        \
+enddef
+
+init_assets
+setup_account "root" "info@catx.io"

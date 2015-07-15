@@ -18,22 +18,26 @@ namespace mkt
       return what_str().c_str();
     }
   };
+}
 
-#define MKT_DEF_EXCEPTION(name) \
-  class name : public exception \
-  { \
-  public: \
-    name () : _msg(#name) {} \
-    name (const std::string& msg) : \
-      _msg(boost::str(boost::format(#name " exception: %1%") % msg)) {} \
-    virtual ~name() throw() {} \
-    virtual const std::string& what_str() const throw() { return _msg; } \
-  private: \
-    std::string _msg; \
+#define MKT_DEF_EXCEPTION(name)                                                \
+  class name : public mkt::exception		                               \
+  {                                                                            \
+  public:                                                                      \
+    name () : _msg(#name) {}                                                   \
+    name (const std::string& msg) :                                            \
+      _msg(boost::str(boost::format(#name " exception: %1%") % msg)) {}        \
+    virtual ~name() throw() {}                                                 \
+    virtual const std::string& what_str() const throw() { return _msg; }       \
+  private:                                                                     \
+    std::string _msg;                                                          \
   }
 
+namespace mkt
+{
   //Standard, system-wide exceptions
   MKT_DEF_EXCEPTION(system_error);
 }
+
 
 #endif

@@ -5,9 +5,7 @@ if(WIN32)
 endif(WIN32)
 
 set(INCLUDE_FILES
-  ../../inc/mkt/accounts.h
   ../../inc/mkt/app.h
-  ../../inc/mkt/assets.h
   ../../inc/mkt/commands.h
   ../../inc/mkt/echo.h
   ../../inc/mkt/exceptions.h
@@ -18,9 +16,7 @@ set(INCLUDE_FILES
 )
 
 set(SOURCE_FILES
-  accounts.cpp
   app.cpp
-  assets.cpp
   commands.cpp
   echo.cpp
   threads.cpp
@@ -82,9 +78,6 @@ target_link_libraries(mkt ${MKT_LINK_LIBS})
 
 add_executable(trans-mkt trans-mkt.cpp)
 target_link_libraries(trans-mkt mkt)
-
-add_executable(trans-orderbook orderbook.cpp)
-target_link_libraries(trans-orderbook mkt)
 
 configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/../../inc/mkt/config.h.cmake ${CMAKE_BINARY_DIR}/inc/mkt/config.h )
 

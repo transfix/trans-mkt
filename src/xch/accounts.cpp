@@ -1,9 +1,9 @@
+#include <xch/accounts.h>
+
 #include <mkt/commands.h>
 #include <mkt/echo.h>
 #include <mkt/threads.h>
 #include <mkt/vars.h>
-#include <mkt/assets.h>
-#include <mkt/accounts.h>
 
 #include <boost/lexical_cast.hpp>
 #include <boost/current_function.hpp>
@@ -18,7 +18,7 @@
  */
 
 //This module's exceptions
-namespace mkt
+namespace xch 
 {
   MKT_DEF_EXCEPTION(accounts_error);
 }
@@ -27,11 +27,11 @@ namespace mkt
 //TODO: consider using Boost.Multiprecision for balance type 
 namespace
 {
-  typedef mkt::asset_id_t                          asset_id_t;
-  typedef mkt::account_id_t                        account_id_t;
-  typedef mkt::transaction_id_t                    transaction_id_t;
-  typedef mkt::ptime                               ptime;
-  typedef mkt::transaction                         transaction;
+  typedef xch::asset_id_t                          asset_id_t;
+  typedef xch::account_id_t                        account_id_t;
+  typedef xch::transaction_id_t                    transaction_id_t;
+  typedef xch::ptime                               ptime;
+  typedef xch::transaction                         transaction;
   typedef std::map<asset_id_t, double>             balances;           //map key is asset ID
   typedef std::map<account_id_t, balances>         account_map;        //map key is account ID
   typedef std::multimap<ptime, transaction>        transaction_map;    //map key is transaction time
@@ -42,7 +42,7 @@ namespace
     account_map                 _account_map;
     transaction_map             _transaction_history;
     transaction_id_map          _transactions;
-    mkt::mutex                  _account_map_mutex;
+    xch::mutex                  _account_map_mutex;
   };
   accounts_data                *_accounts_data = 0;
   bool                          _accounts_atexit = false;
@@ -57,7 +57,7 @@ namespace
   accounts_data* _get_accounts_data()
   {
     if(_accounts_atexit)
-      throw mkt::accounts_error("Already at program exit!");
+      throw xch::accounts_error("Already at program exit!");
 
     if(!_accounts_data)
       {
@@ -66,7 +66,7 @@ namespace
       }
 
     if(!_accounts_data)
-      throw mkt::accounts_error("Missing static variable data!");
+      throw xch::accounts_error("Missing static variable data!");
     return _accounts_data;
   }
 
@@ -85,7 +85,7 @@ namespace
     return _get_accounts_data()->_transactions;
   }
 
-  mkt::mutex& account_map_mutex_ref()
+  xch::mutex& account_map_mutex_ref()
   {
     return _get_accounts_data()->_account_map_mutex;
   }
@@ -98,6 +98,7 @@ namespace
   {
     using namespace boost;
     using namespace mkt;
+    using namespace xch;
     thread_info ti(BOOST_CURRENT_FUNCTION);
     argument_vector local_args = args;
     local_args.erase(local_args.begin()); //remove the command string
@@ -111,10 +112,10 @@ namespace
       string_cast<asset_id_t>(local_args[2]);
     double amount =
       string_cast<double>(local_args[3]);
-    mkt::exec_transaction(to_account_id,
-                          from_account_id,
-                          asset_id,
-                          amount);
+    xch::exec_transaction(to_account_id,
+			  from_account_id,
+			  asset_id,
+			  amount);
   }
 
   void init_account(const mkt::argument_vector& args)
@@ -123,26 +124,26 @@ namespace
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     mkt::argument_vector local_args = args;
     local_args.erase(local_args.begin()); //remove the command string
-    mkt::account_id_t account_id = -1;
+    xch::account_id_t account_id = -1;
     if(local_args.empty())
       {
-        account_id = mkt::get_unique_account_id();
+        account_id = xch::get_unique_account_id();
       }
     else
       {
         try
           {
             account_id = 
-              mkt::string_cast<mkt::account_id_t>(local_args[0]);
+              mkt::string_cast<xch::account_id_t>(local_args[0]);
           }
         catch(mkt::system_error&)
           {
-            throw mkt::accounts_error(str(format("Invalid account id %1%")
+            throw xch::accounts_error(str(format("Invalid account id %1%")
                                           % local_args[0]));
           }
       }
 
-    mkt::init_account(account_id);
+    xch::init_account(account_id);
     mkt::out().stream() << "Account " 
                         << account_id 
                         << " initialized." << std::endl;
@@ -167,7 +168,7 @@ namespace
 
 
 //Accounts API implementation
-namespace mkt
+namespace xch 
 {
   boost::signals2::signal<void (account_id_t)>  account_changed;
 
