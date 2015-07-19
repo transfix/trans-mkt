@@ -2,6 +2,7 @@
 #include <mkt/commands.h>
 #include <mkt/threads.h>
 #include <mkt/echo.h>
+#include <mkt/modules.h>
 
 //#include <xch/assets.h>
 //#include <xch/accounts.h>
@@ -39,6 +40,7 @@ int main(int argc, char **argv)
   mkt::argv(argc, argv);
 
   mkt::init_echo();
+  mkt::init_modules();
   //xch::init_assets();
   //xch::init_accounts();
 

@@ -8,6 +8,7 @@ set(INCLUDE_FILES
   ../../inc/mkt/app.h
   ../../inc/mkt/commands.h
   ../../inc/mkt/echo.h
+  ../../inc/mkt/modules.h
   ../../inc/mkt/exceptions.h
   ../../inc/mkt/threads.h
   ../../inc/mkt/types.h
@@ -19,6 +20,7 @@ set(SOURCE_FILES
   app.cpp
   commands.cpp
   echo.cpp
+  modules.cpp
   threads.cpp
   vars.cpp
 )

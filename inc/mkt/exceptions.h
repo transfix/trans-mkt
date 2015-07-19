@@ -37,6 +37,7 @@ namespace mkt
 {
   //Standard, system-wide exceptions
   MKT_DEF_EXCEPTION(system_error);
+  MKT_DEF_EXCEPTION(null_implementation_error);
 }
 
 
