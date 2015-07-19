@@ -120,13 +120,17 @@ namespace mkt
     try
       {
         mkt::exec(av);
-        result[0] = std::string("success");
+        result[0] = mkt::var("_");
+	result[1] = string("success");
       }
     catch(mkt::exception& e)
       {
+	string res = boost::str(boost::format("Error: %1%")
+				% e.what_str());
         if(!e.what_str().empty()) 
-          mkt::out().stream() << "Error: " << e.what_str() << endl;
-        result[0] = std::string("error");
+          mkt::out().stream() << res << endl;
+        result[0] = res;
+	result[1] = string("error");
       }
   }
 
@@ -145,8 +149,9 @@ namespace mkt
     std::string args_str = boost::algorithm::join(args, " ");
     params[0] = args_str;
     c.execute("mkt_exec", params, result);
-    if(result[0] == std::string("error"))
-      throw xmlrpc_remote_error("remote error.");
+    mkt::ret_val(std::string(result[0])); //passing return values across the network
+    if(result[1] == std::string("error"))
+      throw xmlrpc_remote_error(result[0]);
   }
 
   //Calls echo on any mkt xmlrpc servers listed in the __remote_echo system variable
@@ -319,7 +324,7 @@ namespace
   {
     using namespace std;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    mkt::out().stream() << mkt::get_local_ip_address() << endl;
+    mkt::ret_val(mkt::get_local_ip_address());
   }
 
   void remote(const mkt::argument_vector& args)

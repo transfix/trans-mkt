@@ -16,6 +16,8 @@
 #include <boost/program_options/parsers.hpp>
 #include <cctype>
 
+#include <sstream>
+
 //split_winmain is ifdef'ed out on Linux, so lets just add it here.
 namespace
 {
@@ -235,17 +237,21 @@ namespace
     mkt::ret_val(val);
   }
 
+#if 0
   void pop(const mkt::argument_vector& args)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     mkt::pop_vars();
+    mkt::ret_val(mkt::vars_stack_size());
   }
 
   void push(const mkt::argument_vector& args)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     mkt::push_vars();
+    mkt::ret_val(mkt::vars_stack_size());
   }
+#endif
 
   void set(const mkt::argument_vector& args)
   {
@@ -260,13 +266,13 @@ namespace
     if(args.size() == 1)
       {
         mkt::argument_vector vars = mkt::list_vars(mkt::var_context(1));
+	std::stringstream ss;
         BOOST_FOREACH(const mkt::var_string& cur_var, vars)
           {
-            mkt::out().stream() 
-	      << "set " << cur_var 
-	      << " \"" << mkt::var(cur_var, mkt::var_context(1)) << "\"" << std::endl;
+            ss << "set " << cur_var 
+	       << " \"" << mkt::var(cur_var, mkt::var_context(1)) << "\"" << std::endl;
           }
-	mkt::ret_val("");
+	mkt::ret_val(ss.str());
 	return;
       }
     else if(args.size() == 2)
@@ -287,12 +293,35 @@ namespace
     mkt::ret_val(mkt::var(args[1], mkt::var_context(1)));
   }
 
+  void get(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    if(args.size()<2) 
+      throw mkt::command_error("Missing variable argument.");
+    if(!mkt::has_var(args[1]))
+      throw mkt::vars_error("No such argument " + args[1]);
+    size_t depth = args.size()>2 ? 
+      (mkt::string_cast<size_t>(args[2])+1) : 1;
+    mkt::ret_val(mkt::var(args[1], mkt::var_context(depth)));
+  }
+
   void unset(const mkt::argument_vector& args)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     if(args.size()<2)
       throw mkt::command_error("Missing arguments for unset");
+
+    mkt::var_string ret = mkt::var(args[1], mkt::var_context(1));
     mkt::unset_var(args[1], mkt::var_context(1));
+    
+    //return the value that was unset
+    mkt::ret_val(ret);
+  }
+
+  void stack_size(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    mkt::ret_val(mkt::vars_stack_size());
   }
 
   class init_commands
@@ -303,11 +332,14 @@ namespace
       using namespace std;
       using namespace mkt;
 
+      add_command("get", get, "get <varname>\nReturns the contents of a variable.");
       add_command("has_var", has_var, "Returns true or false whether the variable exists or not.");
-      add_command("pop", pop, "Pops the variable stack.");
-      add_command("push", push, "Pushes the variable stack.");
+      //add_command("pop", pop, "Pops the variable stack.");
+      //add_command("push", push, "Pushes the variable stack.");
       add_command("set", set, "set [<varname> <value>]\n"
                   "Sets a variable to the value specified.  If none, prints all variables in the system.");
+      add_command("stack_size", stack_size, 
+		  "Returns the number of levels in the stack for the current thread.");
       add_command("unset", unset, "unset <varname>\nRemoves a variable from the system.");
     }
   } init_commands_static_init;
@@ -436,7 +468,7 @@ namespace mkt
     using namespace std;
     using namespace boost;
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    string local_args(args);
+    var_string local_args(args);
 
     boost::array<regex, 2> exprs = 
       { 
@@ -459,10 +491,10 @@ namespace mkt
                                 local_args.end(), what, expr, flags))
                   {
                     //do the expansion
-                    string var_name = string(what[2]);
+                    var_string var_name = string(what[2]);
                     if(!has_var(var_name)) continue; //TODO: what if this throws
                     found = true;
-                    string expanded_arg = var(var_name);
+                    var_string expanded_arg = var(var_name);
                     local_args.replace(what[1].first, what[1].second,
                                        expanded_arg);
                   }

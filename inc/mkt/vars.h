@@ -167,7 +167,7 @@ namespace mkt
 
   //sets the return value for the current command
   template<class T>
-    inline void ret_val(const T& val)
+    inline void ret_val(const T& val = T())
     {
       thread_info ti(BOOST_CURRENT_FUNCTION);
       var("_", val);

@@ -22,6 +22,7 @@
 
 #include <fstream>
 #include <iomanip>
+#include <sstream>
 #include <cstdlib>
 
 //This module's exceptions
@@ -119,8 +120,8 @@ namespace
 
 	//output the contents of the retval to the output stream
 	mkt::var_string rv = mkt::var("_");
-	if(!rv.empty())
-	  mkt::out().stream() << rv << endl;
+	mkt::out().stream() << "_ <- \"" << rv << "\"" << endl;
+	mkt::ret_val(mkt::var_string());
 
 	cmd_restore_prompt();
       }
@@ -149,8 +150,10 @@ namespace
     mkt::argument_vector prog_args = mkt::argv();
     std::string prog_name = !prog_args.empty() ? prog_args[0] : "mkt";
 
-    mkt::out().stream() << "Version: " << mkt::version() << endl;
-    mkt::out().stream() << "Usage: " << prog_name << " <command> <command args>" << endl << endl;
+    stringstream ss;
+    ss << endl;
+    ss << "Version: " << mkt::version() << endl;
+    ss << "Usage: " << prog_name << " <command> <command args>" << endl << endl;
 
     mkt::argument_vector local_args = args;
     local_args.erase(local_args.begin()); //remove command string
@@ -163,24 +166,27 @@ namespace
         //make sure we have a multiple of 3 for table printing 3 columns
         while(cmd_list.size() % 3) cmd_list.push_back(string());
         
-        mkt::out().stream() << "Available commands:" << endl << endl;
+        ss << "Available commands:" << endl << endl;
         for(size_t i = 0; i < cmd_list.size(); i+=3)
           {
-            mkt::out().stream()
+            ss
               << setw(25) << cmd_list[i+0] 
               << setw(25) << cmd_list[i+1] 
               << setw(25) << cmd_list[i+2]
               << endl;
           }
         
-        mkt::out().stream() 
+	ss
           << "\nUse the command \"help <command name>\" to get a description of each command" << endl;
       }
     else
       {
-        mkt::out().stream()
-          << mkt::get_command_description(local_args[0]) << endl;
+	if(!mkt::has_command(local_args[0]))
+	  throw mkt::command_error("No such command " + local_args[0]);
+	ss << mkt::get_command_description(local_args[0]) << endl;
       }
+    
+    mkt::ret_val(ss.str());
   }
 
   void repeat(const mkt::argument_vector& args)
@@ -241,6 +247,13 @@ namespace
     BOOST_FOREACH(const mkt::argument_vector& cur, split_args)
       mkt::exec(cur);
   }
+
+  void version(const mkt::argument_vector& args)
+  {
+    using namespace std;
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    mkt::ret_val(mkt::version());
+  }
   
   //commands TODO:
   //macro - command list, creates a new command. like serial but it doesnt call.  uses 'then' keyword.
@@ -274,6 +287,7 @@ namespace
       add_command("help", help, "Prints command list.");
       add_command("repeat", repeat, "repeat <num times> <command> -\nRepeat command.");
       add_command("serial", serial, "Execute commands serially separated by a 'then' keyword.");
+      add_command("version", version, "Returns the system version string.");
     }
   } init_commands_static_init;
 }
@@ -315,6 +329,13 @@ namespace mkt
     return cmds()[name].get<1>();
   }
   
+  bool has_command(const std::string& name)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    shared_lock lock(cmds_lock());
+    return cmds().find(name) != cmds().end();
+  }
+
   void exec(const argument_vector& args)
   {
     using namespace boost;

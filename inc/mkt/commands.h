@@ -24,6 +24,7 @@ namespace mkt
   void remove_command(const std::string& name);
   argument_vector get_commands();
   std::string get_command_description(const std::string& name);
+  bool has_command(const std::string& name);
 
   //Executes a command. The first string is the command, with everything
   //after being the command's arguments.

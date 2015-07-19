@@ -3,12 +3,15 @@
 #include <mkt/echo.h>
 #include <mkt/commands.h>
 #include <mkt/exceptions.h>
+#include <mkt/vars.h>
 
 #include <boost/foreach.hpp>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/regex.hpp>
+#include <boost/format.hpp>
 
 #include <set>
+#include <sstream>
 
 //This module's exceptions
 namespace mkt
@@ -191,7 +194,7 @@ namespace
       {
         mkt::argument_vector local_cur = cur;
         local_cur.insert(local_cur.begin(), "async");
-        async(local_cur);
+	mkt::exec(local_cur);
       }
   }
 
@@ -224,6 +227,7 @@ namespace
     if(args.size()>=2 && args[1]=="expand_info")
       expand_info = true;
     
+    stringstream ss;
     BOOST_FOREACH(mkt::thread_map::value_type& cur, tm)
       if(cur.second)
         {
@@ -243,10 +247,14 @@ namespace
               catch(...){}
             }
 
-          mkt::out().stream() << cur.first << " " 
-                    << cur.second->get_id() << " " 
-                    << ti << endl;
+	  ss << boost::str(boost::format("\"%1%\", \"%2%\", \"%3%\"")
+			   % cur.first
+			   % cur.second->get_id()
+			   % ti)
+	     << endl;
         }
+
+    mkt::ret_val(ss.str());
   }
 
   void sleep(const mkt::argument_vector& args)
