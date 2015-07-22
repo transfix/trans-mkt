@@ -17,6 +17,7 @@ namespace xch
 
   extern mkt::map_change_signal assets_changed;
   void init_accounts(); //call to initialize this module
+  void final_accounts();
   void exec_transaction(account_id_t to_account_id,
                         account_id_t from_account_id,
                         asset_id_t asset_id,

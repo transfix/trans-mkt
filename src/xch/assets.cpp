@@ -215,10 +215,21 @@ namespace xch
 {
   map_change_signal assets_changed;
 
-  //no-op to force static init of this translation unit
-  //TODO: is there a way around this such that main() doesn't need to know
-  //about the assets module?
   void init_assets() {}
+
+  void final_assets()
+  {
+    // TODO: clean up the way we add/remove commands for modules in particular
+    mkt::remove_command("get_assets");
+    mkt::remove_command("get_asset_id");
+    mkt::remove_command("get_asset_name");
+    mkt::remove_command("has_asset");
+    mkt::remove_command("remove_asset");
+    mkt::remove_command("set_asset_id");
+    
+    // TODO: can only clean up once right now, fix this!
+    _assets_cleanup();
+  }
   
   void set_asset_id(const std::string& asset_name, asset_id_t asset_id)
   {

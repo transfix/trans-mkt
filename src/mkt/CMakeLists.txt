@@ -4,11 +4,14 @@ if(WIN32)
   add_definitions(-D__WINDOWS__)
 endif(WIN32)
 
+if(UNIX)
+  add_definitions(-D__UNIX__)
+endif(UNIX)
+
 set(INCLUDE_FILES
   ../../inc/mkt/app.h
   ../../inc/mkt/commands.h
   ../../inc/mkt/echo.h
-  ../../inc/mkt/modules.h
   ../../inc/mkt/exceptions.h
   ../../inc/mkt/threads.h
   ../../inc/mkt/types.h
@@ -20,7 +23,6 @@ set(SOURCE_FILES
   app.cpp
   commands.cpp
   echo.cpp
-  modules.cpp
   threads.cpp
   vars.cpp
 )
@@ -48,10 +50,28 @@ option(MKT_USING_XMLRPC "If this is enabled, mkt will use xmlrpc" ON)
 mark_as_advanced(MKT_USING_XMLRPC)
 if(MKT_USING_XMLRPC)
   set(MKT_LINK_LIBS ${MKT_LINK_LIBS} xmlrpc)
+  set(INCLUDE_FILES
+    ${INCLUDE_FILES}
+    ../../inc/mkt/xmlrpc.h)
   set(SOURCE_FILES
       ${SOURCE_FILES}
       xmlrpc.cpp)
 endif(MKT_USING_XMLRPC)
+
+option(MKT_USING_MODULES "If this is enabled, mkt will use modules" ON)
+mark_as_advanced(MKT_USING_MODULES)
+if(NOT UNIX)
+  message(SEND_ERROR "modules not supported on your platform yet... :/")
+endif(NOT UNIX)
+if(MKT_USING_MODULES)
+  set(MKT_LINK_LIBS ${MKT_LINK_LIBS} dl)
+  set(INCLUDE_FILES
+    ${INCLUDE_FILES}
+    ../../inc/mkt/modules.h)
+  set(SOURCE_FILES
+    ${SOURCE_FILES}
+    modules.cpp)
+endif(MKT_USING_MODULES)
 
 #link against the readline implementations
 if(MKT_INTERACTIVE)

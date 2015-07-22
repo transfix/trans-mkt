@@ -486,7 +486,7 @@ namespace mkt
             match_flag_type flags = match_default;
             try
               {
-                //http://www.boost.org/doc/libs/1_57_0/libs/regex/doc/html/boost_regex/ref/regex_search.html
+                // http://bit.ly/1RLqTVV
                 if(regex_search(local_args.begin(), 
                                 local_args.end(), what, expr, flags))
                   {

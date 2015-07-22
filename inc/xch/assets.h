@@ -18,6 +18,7 @@ namespace xch
   typedef std::map<asset_id_t, std::string>  reverse_asset_map;
   extern  mkt::map_change_signal             assets_changed;
   void init_assets();
+  void final_assets();
   void set_asset_id(const std::string& asset_name, asset_id_t asset_id);
   asset_id_t get_asset_id(const std::string& asset_name);
   std::string get_asset_name(asset_id_t asset_id);

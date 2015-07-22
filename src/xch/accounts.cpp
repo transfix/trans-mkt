@@ -172,8 +172,16 @@ namespace xch
 {
   boost::signals2::signal<void (account_id_t)>  account_changed;
 
-  //no-op to force static init of this translation unit
-  void init_accounts() {}
+  void init_accounts() 
+  {
+    // TODO: see assets
+  }
+
+  void final_accounts()
+  {
+    // TODO: see assets
+    mkt::remove_command("init_account");
+  }
   
   void exec_transaction(account_id_t to_account_id,
                         account_id_t from_account_id,
