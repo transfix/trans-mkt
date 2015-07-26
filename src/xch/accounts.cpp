@@ -45,25 +45,17 @@ namespace
     xch::mutex                  _account_map_mutex;
   };
   accounts_data                *_accounts_data = 0;
-  bool                          _accounts_atexit = false;
 
   void _accounts_cleanup()
   {
-    _accounts_atexit = true;
     delete _accounts_data;
     _accounts_data = 0;
   }
 
   accounts_data* _get_accounts_data()
   {
-    if(_accounts_atexit)
-      throw xch::accounts_error("Already at program exit!");
-
     if(!_accounts_data)
-      {
-        _accounts_data = new accounts_data;
-        std::atexit(_accounts_cleanup);
-      }
+      _accounts_data = new accounts_data;
 
     if(!_accounts_data)
       throw xch::accounts_error("Missing static variable data!");
@@ -150,20 +142,6 @@ namespace
     
     mkt::var("_", account_id); //return the account_id
   }
-
-  class init_commands
-  {
-  public:
-    init_commands()
-    {
-      using namespace std;
-      using namespace mkt;
-
-      add_command("init_account", init_account, 
-                  "init_account [<account id>]\nInitializes a new account and initializes "
-                  "balances of known assets to 0.0. If no account_id is specified, the system will generate one.");
-    }
-  } init_commands_static_init;
 }
 
 
@@ -172,15 +150,22 @@ namespace xch
 {
   boost::signals2::signal<void (account_id_t)>  account_changed;
 
+  //submodule initialization and finalization
   void init_accounts() 
   {
-    // TODO: see assets
+    using namespace mkt;
+
+    add_command("init_account", ::init_account, 
+		"init_account [<account id>]\nInitializes a new account and initializes "
+		"balances of known assets to 0.0. If no account_id is specified, the system will generate one.");
   }
 
   void final_accounts()
   {
-    // TODO: see assets
-    mkt::remove_command("init_account");
+    using namespace mkt;
+    remove_command("init_account");
+
+    _accounts_cleanup();
   }
   
   void exec_transaction(account_id_t to_account_id,

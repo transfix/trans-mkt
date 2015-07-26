@@ -31,28 +31,20 @@ namespace
     xch::mutex              _asset_map_mutex;
   };
   assets_data              *_assets_data = 0;
-  bool                      _assets_atexit = false;
 
   void _assets_cleanup()
   {
-    _assets_atexit = true;
     delete _assets_data;
     _assets_data = 0;
   }
 
   assets_data* _get_assets_data()
   {
-    if(_assets_atexit)
-      throw xch::assets_error("Already at program exit!");
+    if(!_assets_data)
+      _assets_data = new assets_data;
 
     if(!_assets_data)
-      {
-        _assets_data = new assets_data;
-        std::atexit(_assets_cleanup);
-      }
-
-    if(!_assets_data)
-      throw xch::assets_error("Missing static variable data!");
+      throw xch::assets_error("Error allocating module static data!");
     return _assets_data;
   }
 
@@ -184,30 +176,6 @@ namespace
 	mkt::ret_val(asset_name);
       }    
   }
-
-  class init_commands
-  {
-  public:
-    init_commands()
-    {
-      using namespace std;
-      using namespace mkt;
-
-      add_command("get_assets", get_assets, 
-                  "Prints all assets name and id pairs.");
-      add_command("get_asset_id", get_asset_id, 
-                  "get_asset_id [<asset name>]\nPrints asset id associated with specified asset name");
-      add_command("get_asset_name", get_asset_name, 
-                  "get_asset_name [<asset id>]\nPrints asset name associated with specified asset id");
-      add_command("has_asset", has_asset,
-                  "has_asset [<asset name>|<asset id>]\n"
-                  "Prints true or false whether a system has a specified asset");
-      add_command("remove_asset", remove_asset, 
-                  "remove_asset [<asset name>|<asset id>]\nRemove specified asset");
-      add_command("set_asset_id", set_asset_id, 
-                  "set_asset_id [<asset name>] [<asset id>]\nBinds a name with an asset id");
-    }
-  } init_commands_static_init;
 }
 
 //assets API impelmentation
@@ -215,11 +183,26 @@ namespace xch
 {
   map_change_signal assets_changed;
 
-  void init_assets() {}
+  void init_assets()
+  {
+    using namespace mkt;
+    add_command("get_assets", ::get_assets, 
+		"Prints all assets name and id pairs.");
+    add_command("get_asset_id", ::get_asset_id, 
+		"get_asset_id [<asset name>]\nPrints asset id associated with specified asset name");
+    add_command("get_asset_name", ::get_asset_name, 
+		"get_asset_name [<asset id>]\nPrints asset name associated with specified asset id");
+    add_command("has_asset", ::has_asset,
+		"has_asset [<asset name>|<asset id>]\n"
+		"Prints true or false whether a system has a specified asset");
+    add_command("remove_asset", ::remove_asset, 
+		"remove_asset [<asset name>|<asset id>]\nRemove specified asset");
+    add_command("set_asset_id", ::set_asset_id, 
+		"set_asset_id [<asset name>] [<asset id>]\nBinds a name with an asset id");
+  }
 
   void final_assets()
   {
-    // TODO: clean up the way we add/remove commands for modules in particular
     mkt::remove_command("get_assets");
     mkt::remove_command("get_asset_id");
     mkt::remove_command("get_asset_name");
@@ -227,7 +210,6 @@ namespace xch
     mkt::remove_command("remove_asset");
     mkt::remove_command("set_asset_id");
     
-    // TODO: can only clean up once right now, fix this!
     _assets_cleanup();
   }
   

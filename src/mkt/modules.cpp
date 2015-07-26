@@ -51,6 +51,15 @@ namespace
   void _modules_cleanup()
   {
     _modules_atexit = true;
+
+    //Expunge all loaded modules before deleting local static data. It is the module's modules
+    //responsibility to call final functions of loaded modules.
+    //TODO: consider making a local static version of loaded_modules and expunge_module that
+    //don't touch the mutex.
+    mkt::argument_vector mods = mkt::loaded_modules();
+    BOOST_FOREACH(mkt::var_string& mod_name, mods)
+      mkt::expunge_module(mod_name);
+
     delete _modules_data;
     _modules_data = 0;
   }
@@ -81,6 +90,24 @@ namespace
   {
     return _get_modules_data()->_modules_mutex;
   }
+
+  module_data module(const mkt::var_string& mod_name)
+  {
+    using namespace mkt;
+    using namespace boost;
+    module_data md;
+
+    {
+      mkt::unique_lock lock(modules_mutex());
+      if(module_map().find(mod_name) !=
+	 module_map().end())
+	throw modules_error(str(format("No such module %1%")
+				% mod_name));
+      md = module_map()[mod_name];
+    }
+    
+    return md;
+  } 
 }
 
 // module related commands
@@ -135,7 +162,12 @@ namespace mkt
   map_change_signal module_pre_final;
   map_change_signal module_post_final;
 
-  void init_modules() {}
+  void init_modules() 
+  {
+    //set the default module path to be the CWD
+    if(!has_var("sys.ld"))
+      var("sys.ld", ".");
+  }
 
   var_string import_module(const var_string& mod_name)
   {
@@ -170,11 +202,12 @@ namespace mkt
 	trim(cur_path);
 	path p(cur_path);
 
-	boost::array<var_string, 4> mod_filenames =
+	boost::array<var_string, 5> mod_filenames =
 	  {
 	    "lib" + mod_name + ".so",
 	    mod_name + ".so",
 	    mod_name + ".mkt",
+	    mod_name + ".dll",
 	    mod_name
 	  };
 
@@ -270,12 +303,12 @@ namespace mkt
     using namespace boost;
     thread_info ti(BOOST_CURRENT_FUNCTION);
     
+    if(!is_loaded_module(mod_name))
+      throw modules_error("No such module " + mod_name);    
+
     module_data md;
     {
       unique_lock lock(modules_mutex());
-      if(module_map().find(mod_name) ==
-	 module_map().end())
-	throw modules_error("no such module " + mod_name);
       md = module_map()[mod_name];
       module_map().erase(mod_name);
     }
@@ -288,8 +321,15 @@ namespace mkt
       throw modules_error(str(format("Error closing module %1%: %2%\n")
 			      % mod_name
 			      % ::dlerror()));
+  }
 
-    mkt::ret_val(md.filename);
+  bool is_loaded_module(const var_string& mod_name)
+  {
+    unique_lock lock(modules_mutex());
+    if(module_map().find(mod_name) ==
+       module_map().end())
+      return false;
+    return true;
   }
 
   bool valid_module_name(const std::string& str)
