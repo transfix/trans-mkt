@@ -350,4 +350,6 @@ namespace mkt
     catch(...){}
     return false;
   }
+
+  bool modules_at_exit() { return _modules_atexit; }
 }

@@ -17,6 +17,10 @@ namespace mkt
   void echo_register(int64 id, const echo_func& f);
   void echo_unregister(int64 id);
 
+  typedef boost::signals2::signal<void (int64)> echo_func_map_changed_signal;
+  extern echo_func_map_changed_signal echo_function_registered;
+  extern echo_func_map_changed_signal echo_function_unregistered;
+
   //Passes the str argument to every function registered as an echo function
   //and specified by the variable __echo_functions which contains a comma separated list of 
   //echo function ids.
@@ -24,6 +28,10 @@ namespace mkt
 
   //Specifically calls a registered echo function.
   void echo(uint64 echo_function_id, const std::string& str);
+
+  typedef boost::signals2::signal<void (uint64, const std::string& str)> echo_signal;
+  extern echo_signal echo_pre_exec;
+  extern echo_signal echo_post_exec;
 
   //use this class like the following:
   // mkt::out().stream() << "Hello, World!";

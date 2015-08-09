@@ -39,8 +39,6 @@ int main(int argc, char **argv)
   mkt::wait_for_threads w;
   mkt::argv(argc, argv);
 
-  mkt::init_echo();
-  mkt::init_modules();
   //xch::init_assets();
   //xch::init_accounts();
 

@@ -15,7 +15,6 @@ namespace xch
   typedef mkt::int64            account_id_t;
   typedef mkt::int64            transaction_id_t;
 
-  extern mkt::map_change_signal assets_changed;
   void init_accounts(); //call to initialize this module
   void final_accounts();
   void exec_transaction(account_id_t to_account_id,

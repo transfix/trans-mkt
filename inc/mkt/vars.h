@@ -5,6 +5,7 @@
 #include <mkt/types.h>
 #include <mkt/threads.h>
 #include <mkt/exceptions.h>
+#include <mkt/utils.h>
 
 #include <boost/tuple/tuple.hpp>
 #include <boost/tuple/tuple_comparison.hpp>
@@ -16,7 +17,7 @@ namespace mkt
   /*
    * Variable API
    */
-  typedef std::string                               var_string;
+  typedef mkt_str                                   var_string;
   typedef std::map<var_string, var_string>          variable_map;
   typedef std::vector<variable_map>                 variable_map_stack;
   typedef boost::tuple<
@@ -85,28 +86,10 @@ namespace mkt
 
   typedef boost::
     signals2::
-    signal<void (const std::string&, const var_context&)> 
+    signal<void (const var_string&, const var_context&)> 
     var_change_signal;
   extern var_change_signal var_changed;
   
-  template <class T>
-    inline T string_cast(const var_string& str_val)
-    {
-      thread_info ti(BOOST_CURRENT_FUNCTION);
-      using namespace boost;
-      T val;
-      try
-        {
-          val = lexical_cast<T>(str_val);
-        }
-      catch(bad_lexical_cast&)
-        {
-          throw mkt::system_error(str(format("Invalid value type for string %1%")
-                                             % str_val));
-        }
-      return val;
-    }
-
   //template shortcuts for casting var values
   template <class T>
     inline T var(const var_string& varname)

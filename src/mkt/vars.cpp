@@ -138,7 +138,7 @@ namespace
       }
 
     if(!_vars_data)
-      throw mkt::vars_error("Missing static variable data!");
+      throw mkt::vars_error("error allocating static data");
 
     return _vars_data;
   }
@@ -165,26 +165,43 @@ namespace
     return _get_vars_data()->_var_map_stacks[key][idx];
   }
 
+  // duplicates the requested variable map context
+  mkt::variable_map var_copy_map(const mkt::var_context& context,
+				 bool no_locals = true)
+  {
+    mkt::variable_map vm = var_map_ref(context);
+
+    if(no_locals)
+      {
+	//collect the local var names from the current stack frame
+	std::set<mkt::var_string> local_vars;
+	BOOST_FOREACH(const mkt::variable_map::value_type& cur, vm)
+	  {
+	    if(cur.first[0]=='_')
+	      local_vars.insert(cur.first);
+	  }
+	
+	//now remove them from the variable map copy
+	BOOST_FOREACH(const mkt::var_string& var_name, local_vars)
+	  vm.erase(var_name);
+      }
+
+    return vm;
+  }
+
+  // copies the map at the specified from_context to the one at to_context
+  void var_copy_map(const mkt::var_context& to_context,
+		    const mkt::var_context& from_context)
+  {
+    var_map_ref(to_context) = var_copy_map(from_context);
+  }
+
   void var_map_push(const mkt::vms_key& key = 
 		    mkt::vms_key_def())
   {
     std::vector<mkt::variable_map> &vms = 
       _get_vars_data()->_var_map_stacks[key];
-    mkt::variable_map vm = var_map_ref(mkt::var_context(0,key));
-
-    //collect the local var names from the current stack frame
-    std::set<mkt::var_string> local_vars;
-    BOOST_FOREACH(const mkt::variable_map::value_type& cur, vm)
-      {
-	if(cur.first[0]=='_')
-	  local_vars.insert(cur.first);
-      }
-
-    //now remove them from the variable map copy
-    BOOST_FOREACH(const mkt::var_string& var_name, local_vars)
-      vm.erase(var_name);
-
-    vms.push_back(vm);
+    vms.push_back(var_copy_map(mkt::var_context(0,key)));
   }
 
   void var_map_pop(const mkt::vms_key& key = 
@@ -358,6 +375,7 @@ namespace mkt
   var_string var(const var_string& varname,
 		 const var_context& context)
   {
+    thread_info ti(BOOST_CURRENT_FUNCTION);
     bool creating = false;
     var_string val;
     {

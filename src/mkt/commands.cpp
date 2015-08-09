@@ -41,6 +41,7 @@ namespace
   };
   commands_data     *_commands_data = 0;
   bool               _commands_atexit = false;
+  bool               _commands_post_static_init = false;
 
   void _cmds_cleanup()
   {
@@ -99,7 +100,7 @@ namespace
     char *line;
     while(line = readline(mkt::expand_vars(mkt::var("PS1")).c_str()))
       {
-        std::string str_line(line);
+	mkt::mkt_str str_line(line);
         add_history(line);
         free(line);
 
@@ -148,7 +149,7 @@ namespace
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
 
     mkt::argument_vector prog_args = mkt::argv();
-    std::string prog_name = !prog_args.empty() ? prog_args[0] : "mkt";
+    mkt::mkt_str prog_name = !prog_args.empty() ? prog_args[0] : "mkt";
 
     stringstream ss;
     ss << endl;
@@ -295,21 +296,39 @@ namespace
 //API implementation
 namespace mkt
 {
-  void add_command(const std::string& name,
+  map_change_signal   command_added;
+  map_change_signal   command_removed;
+  command_exec_signal command_pre_exec;
+  command_exec_signal command_post_exec;
+
+  void init_commands()
+  {
+    _commands_post_static_init = true; //safe to fire signals
+  }
+
+  void add_command(const mkt_str& name,
                    const command_func& func,
-                   const std::string& desc)
+                   const mkt_str& desc)
   {
     using namespace boost;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    unique_lock lock(cmds_lock());
-    cmds()[name] = make_tuple(func, desc);
+    {
+      unique_lock lock(cmds_lock());
+      cmds()[name] = make_tuple(func, desc);
+    }
+    if(_commands_post_static_init)
+      command_added(name);
   }
 
-  void remove_command(const std::string& name)
+  void remove_command(const mkt_str& name)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    unique_lock lock(cmds_lock());
-    cmds().erase(name);
+    {
+      unique_lock lock(cmds_lock());
+      cmds().erase(name);
+    }
+    if(_commands_post_static_init)
+      command_removed(name);
   }
 
   argument_vector get_commands()
@@ -322,20 +341,21 @@ namespace mkt
     return av;
   }
 
-  std::string get_command_description(const std::string& name)
+  mkt_str get_command_description(const mkt_str& name)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     shared_lock lock(cmds_lock());    
     return cmds()[name].get<1>();
   }
   
-  bool has_command(const std::string& name)
+  bool has_command(const mkt_str& name)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     shared_lock lock(cmds_lock());
     return cmds().find(name) != cmds().end();
   }
 
+  //TODO: co-routines by using different stack names.
   void exec(const argument_vector& args)
   {
     using namespace boost;
@@ -345,14 +365,14 @@ namespace mkt
 
     //do variable expansion
     argument_vector local_args = args;
-    BOOST_FOREACH(std::string& arg, local_args)
+    BOOST_FOREACH(mkt_str& arg, local_args)
       arg = expand_vars(arg);
 
     //get the command function
     command cmd;
     {
       unique_lock lock(cmds_lock());
-      std::string cmd_str = local_args[0];
+      mkt_str cmd_str = local_args[0];
       if(cmds().find(cmd_str)==cmds().end())
         throw command_error(str(format("Invalid command: %1%") % cmd_str));
       cmd = cmds()[cmd_str];
@@ -361,17 +381,19 @@ namespace mkt
     //finally call it
     push_vars();
     var("_", ""); //reset the return val for this stack frame
+    command_pre_exec(local_args, vars_main_stackname());
     cmd.get<0>()(local_args);
+    command_post_exec(local_args, vars_main_stackname());
     pop_vars();
   }
 
-  void ex(const std::string& cmd, bool escape)
+  void ex(const mkt_str& cmd, bool escape)
   {
     using namespace std;
     using namespace boost;
     using namespace boost::algorithm;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    std::string local_cmd(cmd); trim(local_cmd);
+    mkt_str local_cmd(cmd); trim(local_cmd);
 
     //no-op for empty cmd lines and comments
     if(local_cmd.empty() || local_cmd[0]=='#') return;

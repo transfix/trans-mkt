@@ -1,0 +1,208 @@
+#include <mkt/log.h>
+#include <mkt/commands.h>
+#include <mkt/exceptions.h>
+#include <mkt/threads.h>
+#include <mkt/vars.h>
+
+#include <boost/current_function.hpp>
+#include <boost/format.hpp>
+#include <boost/algorithm/string/trim.hpp>
+
+#include <sstream>
+
+// This module's exceptions
+namespace mkt
+{
+  MKT_DEF_EXCEPTION(log_error);
+}
+
+// This module's static data
+namespace
+{
+  struct log_data
+  {
+    mkt::log_entry_queues      _log_entry_queues;
+    
+    //Big-lock on logging
+    //TODO: break it down when it matters
+    mkt::mutex                 _log_mutex;
+  };
+  log_data                    *_log_data = 0;
+  bool                         _log_atexit = false;
+
+  void _log_cleanup()
+  {
+    _log_atexit = true;
+    delete _log_data;
+    _log_data = 0;
+  }
+
+  log_data* _get_log_data()
+  {
+    if(_log_atexit)
+      throw mkt::log_error("Already at program exit!");
+
+    if(!_log_data)
+      {
+	_log_data = new log_data;
+	std::atexit(_log_cleanup);
+      }
+
+    if(!_log_data)
+      {
+	throw mkt::log_error("error allocating static data");
+      }
+
+    return _log_data;
+  }
+
+  mkt::log_entry_queues& log_entry_queues_ref()
+  {
+    return _get_log_data()->_log_entry_queues;
+  }
+
+  mkt::mutex& log_mutex_ref()
+  {
+    return _get_log_data()->_log_mutex;
+  }
+}
+
+// This module's commands
+namespace
+{
+  void get_logs_cmd(const mkt::argument_vector& args)
+  {
+    using namespace std;
+    using namespace boost;
+    using namespace mkt;
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+
+    if(args.size()<3) throw log_error("Missing arguments.");
+    argument_vector local_args = args;
+    local_args.erase(local_args.begin()); //remove the command string
+    trim(local_args[0]);
+    trim(local_args[1]);
+    if(local_args.size()>2)
+      trim(local_args[2]);
+
+    mkt_str& queue = local_args[0];
+    ptime begin = str_to_ptime(local_args[1]);
+    ptime end = local_args.size()>2 ?
+      str_to_ptime(local_args[2]) :
+      posix_time::microsec_clock::universal_time();
+
+    ret_val("");
+    log_entries_ptr le_p = get_logs(queue, begin, end);
+    if(!le_p) return;
+    stringstream ss;
+    BOOST_FOREACH(log_entries::value_type cur, *le_p)
+      {
+	ss << str(format("\"%1%\", \"%2%\"")
+		  % ptime_to_str(cur.first)
+		  % (cur.second ? cur.second->get<0>() : mkt_str()))
+	   << endl; 
+      }
+    ret_val(ss.str());
+  }
+
+  void log_cmd(const mkt::argument_vector& args)
+  {
+    using namespace std;
+    using namespace boost;
+    using namespace mkt;
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+
+    if(args.size()<3) throw mkt::log_error("Missing arguments.");
+    argument_vector local_args = args;
+    local_args.erase(local_args.begin()); //remove the command string
+    trim(local_args[0]);
+    mkt_str queue = local_args[0];
+    local_args.erase(local_args.begin());
+    mkt_str message = join(local_args);
+    log(queue, message);
+  }
+
+  class init_commands
+  {
+  public:
+    init_commands()
+    {
+      using namespace std;
+      using namespace mkt;
+
+      add_command("get_logs", get_logs_cmd, 
+		  "get_logs <queue name> <begin time> [end time]\n"
+		  "Returns all logs between begin time and end time. If "
+		  "end time isn't specified, 'now' is assumed.");
+      add_command("log", log_cmd, 
+		  "log <queue name> <message>\n"
+		  "Posts a message to the specified message queue.");
+    }
+  } init_commands_static_init;
+}
+
+// Log API implementation
+namespace mkt
+{
+  void init_log()
+  {
+
+  }
+
+  void final_log()
+  {
+
+  }
+
+  void log(const mkt_str& queue, const mkt_str& message, const any& data)
+  {
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    {
+      unique_lock lock(log_mutex_ref());
+      log_entry_queues& leq = log_entry_queues_ref();
+      
+      if(!leq[queue]) leq[queue].reset(new log_entries);
+      log_entries& le = *leq[queue];
+
+      ptime cur_time = boost::posix_time::microsec_clock::universal_time();
+      log_entry_ptr le_p(new log_entry(message, data));
+      le.insert(log_entries::value_type(cur_time, le_p));
+    }
+  }
+
+  log_entries_ptr get_logs(const mkt_str& queue, ptime begin, ptime end)
+  {
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+
+    log_entries_ptr ret;
+    {
+      unique_lock lock(log_mutex_ref());
+      log_entry_queues& leq = log_entry_queues_ref();
+      if(leq.find(queue)==leq.end()) return ret; // no queue with this name
+      log_entries& le = *leq[queue];
+
+      log_entries::iterator earliest = le.lower_bound(begin);
+      log_entries::iterator latest = le.upper_bound(end);
+      ret.reset(new log_entries(earliest, latest));
+    }
+
+    return ret;
+  }
+
+  argument_vector get_log_queues()
+  {
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    argument_vector queues;
+    {
+      unique_lock lock(log_mutex_ref());
+      log_entry_queues& leq = log_entry_queues_ref();
+      BOOST_FOREACH(const log_entry_queues::value_type& cur, leq)
+	{
+	  queues.push_back(cur.first);
+	}
+    }
+    return queues;
+  }
+  
+  bool log_at_exit() { return _log_atexit; }
+}

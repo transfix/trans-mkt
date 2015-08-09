@@ -4,6 +4,8 @@
 #include <mkt/vars.h>
 #include <mkt/commands.h>
 #include <mkt/echo.h>
+#include <mkt/modules.h>
+#include <mkt/log.h>
 
 #include <boost/bind.hpp>
 #include <boost/foreach.hpp>
@@ -37,6 +39,13 @@ namespace mkt
   {
     using namespace boost;
     mkt::argument_vector args;
+
+    // initialize the whole app here...
+    mkt::init_commands();
+    mkt::init_echo();
+    mkt::init_log();
+    mkt::init_modules();
+
     mkt::var("sys.argc", argc);
     for(int i = 0; i < argc; i++)
       mkt::var(str(format("sys.argv_%1%") % i), argv[i]);
@@ -46,6 +55,7 @@ namespace mkt
   {
     return 
       commands_at_exit() || vars_at_exit() || 
-      threads_at_exit() || echo_at_exit();
+      threads_at_exit() || echo_at_exit() ||
+      modules_at_exit() || log_at_exit();
   }
 }

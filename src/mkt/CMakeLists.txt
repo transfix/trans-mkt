@@ -13,9 +13,11 @@ set(INCLUDE_FILES
   ../../inc/mkt/commands.h
   ../../inc/mkt/echo.h
   ../../inc/mkt/exceptions.h
+  ../../inc/mkt/log.h
   ../../inc/mkt/threads.h
   ../../inc/mkt/types.h
   ../../inc/mkt/vars.h
+  ../../inc/mkt/utils.h
   ${CMAKE_BINARY_DIR}/inc/mkt/config.h
 )
 
@@ -23,8 +25,10 @@ set(SOURCE_FILES
   app.cpp
   commands.cpp
   echo.cpp
+  log.cpp
   threads.cpp
   vars.cpp
+  utils.cpp
 )
 
 source_group("Source Files" FILES ${SOURCE_FILES})

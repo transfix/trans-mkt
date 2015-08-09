@@ -117,18 +117,29 @@ namespace
 //Echo API implementation
 namespace mkt
 {
+  echo_func_map_changed_signal echo_function_registered;
+  echo_func_map_changed_signal echo_function_unregistered;
+  echo_signal echo_pre_exec;
+  echo_signal echo_post_exec;
+
   void echo_register(int64 id, const echo_func& f)
   {
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    unique_lock lock(echo_map_mutex_ref());
-    echo_map_ref()[id] = f;
+    {
+      unique_lock lock(echo_map_mutex_ref());
+      echo_map_ref()[id] = f;
+    }
+    echo_function_registered(id);
   }
 
   void echo_unregister(int64 id)
   {
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    unique_lock lock(echo_map_mutex_ref());
-    echo_map_ref()[id] = echo_func();
+    {
+      unique_lock lock(echo_map_mutex_ref());
+      echo_map_ref()[id] = echo_func();
+    }
+    echo_function_unregistered(id);
   }
 
   void echo(const std::string& str)
@@ -169,9 +180,14 @@ namespace mkt
     using namespace boost;
 
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    unique_lock lock(echo_map_mutex_ref());
-    if(echo_map_ref()[echo_function_id])
-      echo_map_ref()[echo_function_id](str);
+
+    echo_pre_exec(echo_function_id, str);
+    {
+      unique_lock lock(echo_map_mutex_ref());
+      if(echo_map_ref()[echo_function_id])
+	echo_map_ref()[echo_function_id](str);
+    }
+    echo_post_exec(echo_function_id, str);
   }
 
   //the default echo function

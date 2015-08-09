@@ -4,6 +4,7 @@
 #include <mkt/commands.h>
 #include <mkt/exceptions.h>
 #include <mkt/vars.h>
+#include <mkt/utils.h>
 
 #include <boost/foreach.hpp>
 #include <boost/algorithm/string/join.hpp>
@@ -33,7 +34,8 @@ namespace
   };
   threads_data                 *_threads_data = 0;
   bool                          _threads_atexit = false;
-  const std::string             _threads_default_keyname("null");
+  typedef mkt::mkt_str mkt_str;
+  const mkt_str                 _threads_default_keyname("default");
 
   void _threads_cleanup()
   {
@@ -143,7 +145,7 @@ namespace
         local_args.erase(local_args.begin()); //remove "wait"
       }
     
-    std::string local_args_str = boost::join(local_args," ");
+    mkt_str local_args_str = boost::join(local_args," ");
     mkt::start_thread(local_args_str,
                       boost::bind(mkt::exec, local_args),
                       wait);
@@ -207,7 +209,7 @@ namespace
 
     mkt::argument_vector local_args = args;
     local_args.erase(local_args.begin()); //remove the command string to form the thread name
-    std::string thread_name = 
+    mkt_str thread_name = 
       boost::algorithm::join(local_args," ");
 
     mkt::thread_ptr thread = mkt::threads(thread_name);
@@ -263,7 +265,7 @@ namespace
 
     if(args.size()<2) 
       throw mkt::command_error("Missing argument for sleep");
-    mkt::sleep(boost::lexical_cast<int64_t>(args[1]));
+    mkt::sleep(mkt::string_cast<int64_t>(args[1]));
   }
 
   class init_commands
@@ -297,7 +299,7 @@ namespace mkt
 {
   map_change_signal threads_changed;
 
-  const std::string& threads_default_keyname()
+  const mkt_str& threads_default_keyname()
   {
     return _threads_default_keyname;
   }
@@ -305,7 +307,7 @@ namespace mkt
   //Use this to trigger the threads_changed signal because
   //problems happen when signals are envoked during program start/exit due to static
   //initialization order.
-  void trigger_threads_changed(const std::string& key)
+  void trigger_threads_changed(const mkt_str& key)
   {
     bool as = wait_for_threads::at_start();
     bool ae = wait_for_threads::at_exit();
@@ -320,7 +322,7 @@ namespace mkt
     return threads_ref();
   }
 
-  thread_ptr threads(const std::string& key)
+  thread_ptr threads(const mkt_str& key)
   {
     boost::this_thread::interruption_point();
     unique_lock lock(threads_mutex_ref());
@@ -329,7 +331,7 @@ namespace mkt
     return thread_ptr();
   }
 
-  void threads(const std::string& key, const thread_ptr& val)
+  void threads(const mkt_str& key, const thread_ptr& val)
   {
     boost::this_thread::interruption_point();
 
@@ -365,7 +367,7 @@ namespace mkt
     trigger_threads_changed("all");
   }
 
-  bool has_thread(const std::string& key)
+  bool has_thread(const mkt_str& key)
   {
     boost::this_thread::interruption_point();
     unique_lock lock(threads_mutex_ref());
@@ -374,7 +376,7 @@ namespace mkt
     return false;
   }
 
-  double thread_progress(const std::string& key)
+  double thread_progress(const mkt_str& key)
   {
     boost::this_thread::interruption_point();
     unique_lock lock(threads_mutex_ref());
@@ -393,10 +395,10 @@ namespace mkt
 
   void thread_progress(double progress)
   {
-    thread_progress(std::string(),progress);
+    thread_progress(mkt_str(),progress);
   }
 
-  void thread_progress(const std::string& key, double progress)
+  void thread_progress(const mkt_str& key, double progress)
   {
     boost::this_thread::interruption_point();
 
@@ -431,7 +433,7 @@ namespace mkt
       trigger_threads_changed(key);
   }
 
-  void finish_thread_progress(const std::string& key)
+  void finish_thread_progress(const mkt_str& key)
   {
     boost::this_thread::interruption_point();
     {
@@ -451,7 +453,7 @@ namespace mkt
     trigger_threads_changed(key);
   }
 
-  std::string thread_key()
+  mkt_str thread_key()
   {
     boost::this_thread::interruption_point();
     {
@@ -459,28 +461,28 @@ namespace mkt
       if(thread_keys_ref().find(boost::this_thread::get_id())!=thread_keys_ref().end())
         return thread_keys_ref()[boost::this_thread::get_id()];
       else
-        return std::string(threads_default_keyname());
+        return mkt_str(threads_default_keyname());
     }
   }
 
-  void remove_thread(const std::string& key)
+  void remove_thread(const mkt_str& key)
   {
     threads(key,thread_ptr());
   }
 
-  std::string unique_thread_key(const std::string& hint)
+  mkt_str unique_thread_key(const mkt_str& hint)
   {
-    std::string h = hint.empty() ? "thread" : hint;
+    mkt_str h = hint.empty() ? "thread" : hint;
     //Make a unique key name to use by adding a number to the key
-    std::string uniqueThreadKey = h;
+    mkt_str uniqueThreadKey = h;
     unsigned int i = 0;
     while(has_thread(uniqueThreadKey))
       uniqueThreadKey = 
-        h + boost::lexical_cast<std::string>(i++);
+        h + boost::lexical_cast<mkt_str>(i++);
     return uniqueThreadKey;
   }
 
-  void set_thread_info(const std::string& key, const std::string& infostr)
+  void set_thread_info(const mkt_str& key, const mkt_str& infostr)
   {
     boost::this_thread::interruption_point();
     {
@@ -500,7 +502,7 @@ namespace mkt
     trigger_threads_changed(key);
   }
 
-  std::string get_thread_info(const std::string& key)
+  mkt_str get_thread_info(const mkt_str& key)
   {
     boost::this_thread::interruption_point();
     {
@@ -513,23 +515,23 @@ namespace mkt
               threads_ref()[key])
         tid = threads_ref()[key]->get_id();
       else
-        return std::string();
+        return mkt_str();
 
       return thread_info_ref()[tid];
     }
   }
 
-  void this_thread_info(const std::string& infostr)
+  void this_thread_info(const mkt_str& infostr)
   {
-    set_thread_info(std::string(),infostr);
+    set_thread_info(mkt_str(),infostr);
   }
   
-  std::string this_thread_info()
+  mkt_str this_thread_info()
   {
     return get_thread_info();
   }
 
-  thread_info::thread_info(const std::string& info)
+  thread_info::thread_info(const mkt_str& info)
   {
     _orig_info = this_thread_info();
     _orig_progress = thread_progress();
@@ -542,7 +544,7 @@ namespace mkt
     thread_progress(_orig_progress);
   }
 
-  thread_feedback::thread_feedback(const std::string& info)
+  thread_feedback::thread_feedback(const mkt_str& info)
     : _info(info)
   {
     thread_progress(0.0);

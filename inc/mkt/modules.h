@@ -22,6 +22,8 @@ namespace mkt
 
   //returns true if string is a valid module name
   bool valid_module_name(const std::string& str);
+
+  bool modules_at_exit();
 }
 
 #endif

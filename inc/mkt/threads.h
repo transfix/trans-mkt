@@ -5,6 +5,7 @@
 #include <mkt/types.h>
 
 #include <boost/thread.hpp>
+#include <boost/foreach.hpp>
 
 namespace mkt
 {
@@ -12,44 +13,44 @@ namespace mkt
    * Thread API
    */
   typedef boost::shared_ptr<boost::thread>           thread_ptr;
-  typedef std::map<std::string, thread_ptr>          thread_map;
+  typedef std::map<mkt_str, thread_ptr>          thread_map;
   typedef boost::thread::id                          thread_id;
   typedef std::map<thread_id, double>                thread_progress_map;
-  typedef std::map<thread_id, std::string>           thread_key_map;
-  typedef std::map<thread_id, std::string>           thread_info_map;
+  typedef std::map<thread_id, mkt_str>           thread_key_map;
+  typedef std::map<thread_id, mkt_str>           thread_info_map;
 
   extern map_change_signal threads_changed;
 
   thread_map threads();
-  thread_ptr threads(const std::string& key);
-  void threads(const std::string& key, const thread_ptr& val);
+  thread_ptr threads(const mkt_str& key);
+  void threads(const mkt_str& key, const thread_ptr& val);
   void threads(const thread_map& map);
-  bool has_thread(const std::string& key);
-  double thread_progress(const std::string& key = std::string());
+  bool has_thread(const mkt_str& key);
+  double thread_progress(const mkt_str& key = mkt_str());
   void thread_progress(double progress); //0.0 - 1.0
-  void thread_progress(const std::string& key, double progress);
-  void finish_thread_progress(const std::string& key = std::string());
-  std::string thread_key(); //returns the thread key for this thread
-  const std::string& threads_default_keyname();
-  void remove_thread(const std::string& key);
-  std::string unique_thread_key(const std::string& hint = std::string());
+  void thread_progress(const mkt_str& key, double progress);
+  void finish_thread_progress(const mkt_str& key = mkt_str());
+  mkt_str thread_key(); //returns the thread key for this thread
+  const mkt_str& threads_default_keyname();
+  void remove_thread(const mkt_str& key);
+  mkt_str unique_thread_key(const mkt_str& hint = mkt_str());
 
   //set a string to associate with the thread to state it's current activity
-  void set_thread_info(const std::string& key, const std::string& infostr);
+  void set_thread_info(const mkt_str& key, const mkt_str& infostr);
   
-  std::string get_thread_info(const std::string& key = std::string());
-  void this_thread_info(const std::string& infostr);
-  std::string this_thread_info();
+  mkt_str get_thread_info(const mkt_str& key = mkt_str());
+  void this_thread_info(const mkt_str& infostr);
+  mkt_str this_thread_info();
 
   //Used to easily manage saving/restoring thread info as a thread
   //is executed.
   class thread_info
   {
   public:
-    thread_info(const std::string& info = "running");
+    thread_info(const mkt_str& info = "running");
     ~thread_info();
   private:
-    std::string _orig_info;
+    mkt_str _orig_info;
     double _orig_progress;
   };
 
@@ -58,7 +59,7 @@ namespace mkt
   class thread_feedback
   {
   public:
-    thread_feedback(const std::string& info = "running");    
+    thread_feedback(const mkt_str& info = "running");    
     ~thread_feedback();
   private:
     thread_info _info;
@@ -70,7 +71,8 @@ namespace mkt
     class init_thread
     {
     public:
-    init_thread(const T& t) : _t(t) {}
+      init_thread(const T& t) : 
+	_t(t), _caller_thread_key(thread_key()) {}
       void operator()()
       {
         try
@@ -78,6 +80,7 @@ namespace mkt
             thread_feedback tf(BOOST_CURRENT_FUNCTION);
 	    //TODO: copy vars from calling thread's var map stack to this
 	    //one.
+	    
             _t();
           }
         catch(...)
@@ -87,11 +90,12 @@ namespace mkt
       }
     private:
       T _t;
+      mkt_str _caller_thread_key;
     };
 
   //T is a function object
   template<class T>
-  void start_thread(const std::string& key, const T& t, bool wait = true)
+  void start_thread(const mkt_str& key, const T& t, bool wait = true)
     {
       //If waiting and an existing thread with this key is running,
       //stop the existing running thread with this key and wait for
