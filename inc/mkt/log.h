@@ -5,6 +5,7 @@
 #include <mkt/types.h>
 
 #include <boost/tuple/tuple.hpp>
+#include <boost/date_time/gregorian/gregorian.hpp>
 
 namespace mkt
 {
@@ -29,7 +30,9 @@ namespace mkt
   void log(const mkt_str& queue, const mkt_str& message, const any& data = boost::any());
 
   // return all log entries for a particular queue that fall between [begin, end)
-  log_entries_ptr get_logs(const mkt_str& queue, ptime begin, ptime end);
+  log_entries_ptr get_logs(const ptime& begin = ptime(boost::gregorian::date(1970, 1, 1)), 
+			   const ptime& end = boost::posix_time::microsec_clock::universal_time(), 
+			   const mkt_str& queue_regex = ".*");
 
   // return all log queue names known by the system
   argument_vector get_log_queues();

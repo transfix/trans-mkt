@@ -28,6 +28,8 @@ namespace mkt
       return val;
     }
 
+  bool matches(const mkt_str& in_str, const mkt_str& regex_str = ".*");
+
   //TODO: these should be symmetrical...
   mkt_str ptime_to_str(const ptime& pt);
   ptime str_to_ptime(const mkt_str& s);

@@ -77,24 +77,29 @@ namespace
     using namespace mkt;
     thread_info ti(BOOST_CURRENT_FUNCTION);
 
-    if(args.size()<3) throw log_error("Missing arguments.");
+    if(args.size()<1) throw log_error("Missing arguments.");
     argument_vector local_args = args;
     local_args.erase(local_args.begin()); //remove the command string
-    trim(local_args[0]);
-    trim(local_args[1]);
+    if(local_args.size()>0)
+      trim(local_args[0]);
+    if(local_args.size()>1)
+      trim(local_args[1]);
     if(local_args.size()>2)
       trim(local_args[2]);
 
-    mkt_str& queue = local_args[0];
-    ptime begin = str_to_ptime(local_args[1]);
-    ptime end = local_args.size()>2 ?
-      str_to_ptime(local_args[2]) :
+    ptime begin = local_args.size()>0 ?
+      str_to_ptime(local_args[0]) :
+      ptime(gregorian::date(1970, 1, 1));
+    ptime end = local_args.size()>1 ?
+      str_to_ptime(local_args[1]) :
       posix_time::microsec_clock::universal_time();
+    mkt_str queue = local_args.size()>2 ? 
+      local_args[2] : 
+      ".*";
 
-    ret_val("");
-    log_entries_ptr le_p = get_logs(queue, begin, end);
-    if(!le_p) return;
     stringstream ss;
+    log_entries_ptr le_p = get_logs(begin, end, queue);
+    if(!le_p) return;
     BOOST_FOREACH(log_entries::value_type cur, *le_p)
       {
 	ss << str(format("\"%1%\", \"%2%\"")
@@ -103,6 +108,18 @@ namespace
 	   << endl; 
       }
     ret_val(ss.str());
+  }
+
+  void get_log_queues_cmd(const mkt::argument_vector& args)
+  {
+    using namespace std;
+    using namespace boost;
+    using namespace mkt;
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    
+    argument_vector queues = get_log_queues();
+    mkt_str q_str = join(queues);
+    ret_val(q_str);
   }
 
   void log_cmd(const mkt::argument_vector& args)
@@ -131,9 +148,14 @@ namespace
       using namespace mkt;
 
       add_command("get_logs", get_logs_cmd, 
-		  "get_logs <queue name> <begin time> [end time]\n"
-		  "Returns all logs between begin time and end time. If "
-		  "end time isn't specified, 'now' is assumed.");
+		  "get_logs [begin time] [end time] [queue regex]\n"
+		  "Returns all logs between begin time and end time. "
+		  "If begin time isn't specified, the posix time epoch is assumed. "
+		  "If end time isn't specified, 'now' is assumed. [queue regex] is a "
+		  "regular expression used to select which log queue to read from. "
+		  "Default is '.*'");
+      add_command("get_log_queues", get_log_queues_cmd,
+		  "Returns a list of log queues");
       add_command("log", log_cmd, 
 		  "log <queue name> <message>\n"
 		  "Posts a message to the specified message queue.");
@@ -144,9 +166,40 @@ namespace
 // Log API implementation
 namespace mkt
 {
+  void var_changed_slot(const var_string& varname, const var_context& context)
+  {
+    using namespace boost;
+    log("vars",str(format("variable changed: %1% %2% %3% %4%")
+		   % varname 
+		   % context.stack_depth() 
+		   % context.key().get<0>()
+		   % context.key().get<1>()));
+  }
+
+  class map_change_slot
+  {
+  public:
+    map_change_slot(const mkt_str& queue_str = mkt_str("default"),
+		    const mkt_str& slot_str = mkt_str()) : 
+      _queue_str(queue_str),
+      _str(slot_str) {}
+    void operator()(const mkt_str& changed_key)
+    {
+      using namespace boost;
+      log(_queue_str, str(format("%1% %2%")
+			  % _str
+			  % changed_key));
+    }
+  private:
+    mkt_str _queue_str;
+    mkt_str _str;
+  };
+
   void init_log()
   {
-
+    var_changed.connect(var_changed_slot);
+    command_added.connect(map_change_slot("commands","command_added"));
+    command_removed.connect(map_change_slot("commands","command_removed"));
   }
 
   void final_log()
@@ -154,6 +207,7 @@ namespace mkt
 
   }
 
+  //TODO: make sure queue names are like C identifiers
   void log(const mkt_str& queue, const mkt_str& message, const any& data)
   {
     thread_info ti(BOOST_CURRENT_FUNCTION);
@@ -170,21 +224,27 @@ namespace mkt
     }
   }
 
-  log_entries_ptr get_logs(const mkt_str& queue, ptime begin, ptime end)
+  log_entries_ptr get_logs(const ptime& begin, const ptime& end, const mkt_str& queue_regex)
   {
     thread_info ti(BOOST_CURRENT_FUNCTION);
 
     log_entries_ptr ret;
-    {
-      unique_lock lock(log_mutex_ref());
-      log_entry_queues& leq = log_entry_queues_ref();
-      if(leq.find(queue)==leq.end()) return ret; // no queue with this name
-      log_entries& le = *leq[queue];
+    ret.reset(new log_entries);
+    argument_vector queues = get_log_queues();
 
-      log_entries::iterator earliest = le.lower_bound(begin);
-      log_entries::iterator latest = le.upper_bound(end);
-      ret.reset(new log_entries(earliest, latest));
-    }
+    BOOST_FOREACH(mkt_str& cur, queues)
+      {
+	if(!matches(cur, queue_regex)) continue;
+	else
+	  {
+	    unique_lock lock(log_mutex_ref());
+	    log_entry_queues& leq = log_entry_queues_ref();
+	    log_entries& le = *leq[cur];
+	    log_entries::iterator earliest = le.lower_bound(begin);
+	    log_entries::iterator latest = le.upper_bound(end);
+	    ret->insert(earliest, latest);
+	  }
+      }
 
     return ret;
   }
