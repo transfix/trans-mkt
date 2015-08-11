@@ -26,16 +26,16 @@ namespace
 {
   struct threads_data
   {
-    mkt::thread_map             _threads;
-    mkt::thread_progress_map    _thread_progress;
-    mkt::thread_key_map         _thread_keys;
-    mkt::thread_info_map        _thread_info;
-    mkt::mutex                  _threads_mutex;
+    mkt::thread_map                 _threads;
+    mkt::thread_progress_map        _thread_progress;
+    mkt::thread_key_map             _thread_keys;
+    mkt::thread_info_map            _thread_info;
+    mkt::mutex                      _threads_mutex;
   };
-  threads_data                 *_threads_data = 0;
-  bool                          _threads_atexit = false;
+  threads_data*                     _threads_data = 0;
+  bool                              _threads_atexit = false;
   typedef mkt::mkt_str mkt_str;
-  const mkt_str                 _threads_default_keyname("default");
+  const mkt_str                     _threads_default_keyname("default");
 
   void _threads_cleanup()
   {
@@ -259,7 +259,7 @@ namespace
     mkt::ret_val(ss.str());
   }
 
-  void sleep(const mkt::argument_vector& args)
+  void sleep_cmd(const mkt::argument_vector& args)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
 
@@ -267,29 +267,6 @@ namespace
       throw mkt::command_error("Missing argument for sleep");
     mkt::sleep(mkt::string_cast<int64_t>(args[1]));
   }
-
-  class init_commands
-  {
-  public:
-    init_commands()
-    {
-      using namespace std;
-      using namespace mkt;
-      
-      add_command("async", async,
-                  "Executes a command in another thread and"
-                  " returns immediately. If 'wait' is before\n"
-                  "the command, this command will execute only after"
-                  " a command with the same thread name is finished running.");
-      add_command("async_file", async_file,
-                  "Executes commands listed in a file in parallel.");
-      add_command("parallel", parallel,
-                  "Executes a series of commands in parallel, separated by an 'and' keyword.");
-      add_command("interrupt", interrupt, "Interrupts a running thread.");
-      add_command("threads", list_threads, "Lists running threads by name.");
-      add_command("sleep", sleep, "sleep <milliseconds>\nSleep for the time specified.");
-    }
-  } init_commands_static_init;
 }
 
 /*
@@ -297,7 +274,30 @@ namespace
  */
 namespace mkt
 {
-  map_change_signal threads_changed;
+  MKT_DEF_MAP_CHANGE_SIGNAL(threads_changed);
+
+  void init_threads()
+  {
+    using namespace mkt;
+    
+    add_command("async", ::async,
+		"Executes a command in another thread and"
+		" returns immediately. If 'wait' is before\n"
+		"the command, this command will execute only after"
+		" a command with the same thread name is finished running.");
+    add_command("async_file", ::async_file,
+		"Executes commands listed in a file in parallel.");
+    add_command("parallel", ::parallel,
+		"Executes a series of commands in parallel, separated by an 'and' keyword.");
+    add_command("interrupt", ::interrupt, "Interrupts a running thread.");
+    add_command("threads", ::list_threads, "Lists running threads by name.");
+    add_command("sleep", sleep_cmd, "sleep <milliseconds>\nSleep for the time specified.");
+  }
+
+  void final_threads()
+  {
+    //TODO: unregister commands and other cleanup...
+  }
 
   const mkt_str& threads_default_keyname()
   {
@@ -309,10 +309,7 @@ namespace mkt
   //initialization order.
   void trigger_threads_changed(const mkt_str& key)
   {
-    bool as = wait_for_threads::at_start();
-    bool ae = wait_for_threads::at_exit();
-    if(!as && !ae)
-      threads_changed(key);
+    threads_changed()(key);
   }
 
   thread_map threads()
@@ -453,13 +450,13 @@ namespace mkt
     trigger_threads_changed(key);
   }
 
-  mkt_str thread_key()
+  mkt_str thread_key(thread_id tid)
   {
     boost::this_thread::interruption_point();
     {
       unique_lock lock(threads_mutex_ref());
-      if(thread_keys_ref().find(boost::this_thread::get_id())!=thread_keys_ref().end())
-        return thread_keys_ref()[boost::this_thread::get_id()];
+      if(thread_keys_ref().find(tid)!=thread_keys_ref().end())
+        return thread_keys_ref()[tid];
       else
         return mkt_str(threads_default_keyname());
     }

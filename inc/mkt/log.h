@@ -3,6 +3,7 @@
 
 #include <mkt/config.h>
 #include <mkt/types.h>
+#include <mkt/threads.h>
 
 #include <boost/tuple/tuple.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
@@ -14,8 +15,9 @@ namespace mkt
    */
 
   typedef boost::tuple<
-    mkt_str,         // message
-    any              // data
+    mkt_str,            // message
+    any,                // data
+    thread_id           // thread id where log originated
     > log_entry;
 
   typedef boost::shared_ptr<log_entry>         log_entry_ptr;

@@ -18,8 +18,8 @@ namespace mkt
   void echo_unregister(int64 id);
 
   typedef boost::signals2::signal<void (int64)> echo_func_map_changed_signal;
-  extern echo_func_map_changed_signal echo_function_registered;
-  extern echo_func_map_changed_signal echo_function_unregistered;
+  echo_func_map_changed_signal& echo_function_registered();
+  echo_func_map_changed_signal& echo_function_unregistered();
 
   //Passes the str argument to every function registered as an echo function
   //and specified by the variable __echo_functions which contains a comma separated list of 
@@ -30,8 +30,8 @@ namespace mkt
   void echo(uint64 echo_function_id, const std::string& str);
 
   typedef boost::signals2::signal<void (uint64, const std::string& str)> echo_signal;
-  extern echo_signal echo_pre_exec;
-  extern echo_signal echo_post_exec;
+  echo_signal& echo_pre_exec();
+  echo_signal& echo_post_exec();
 
   //use this class like the following:
   // mkt::out().stream() << "Hello, World!";
@@ -50,6 +50,7 @@ namespace mkt
   };
 
   void init_echo(); //set up standard echo functions
+  void final_echo();
 
   bool echo_at_exit();
 }

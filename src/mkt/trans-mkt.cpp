@@ -34,10 +34,7 @@ namespace
 int main(int argc, char **argv)
 {
   using namespace std;
-  mkt::thread_feedback tf(BOOST_CURRENT_FUNCTION);
-
-  mkt::wait_for_threads w;
-  mkt::argv(argc, argv);
+  mkt::app a(argc, argv);
 
   //xch::init_assets();
   //xch::init_accounts();
@@ -58,7 +55,7 @@ int main(int argc, char **argv)
             }
           else
             {
-              mkt::argument_vector args = mkt::argv();
+              mkt::argument_vector args = a.argv();
               args.erase(args.begin()); //remove the program argument
               mkt::exec(args);
             }

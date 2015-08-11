@@ -2,6 +2,7 @@
 #include <mkt/commands.h>
 #include <mkt/types.h>
 #include <mkt/echo.h>
+#include <mkt/utils.h>
 
 #include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
@@ -32,13 +33,13 @@ namespace
 
   struct module_data
   {
-    mkt::var_string                         filename;
+    mkt::mkt_str                            filename;
     handle                                  h;
     func                                    init;
     func                                    final;
   };
 
-  typedef std::map<mkt::var_string, module_data> module_map_t;
+  typedef std::map<mkt::mkt_str, module_data> module_map_t;
 
   struct modules_data
   {
@@ -57,7 +58,7 @@ namespace
     //TODO: consider making a local static version of loaded_modules and expunge_module that
     //don't touch the mutex.
     mkt::argument_vector mods = mkt::loaded_modules();
-    BOOST_FOREACH(mkt::var_string& mod_name, mods)
+    BOOST_FOREACH(mkt::mkt_str& mod_name, mods)
       mkt::expunge_module(mod_name);
 
     delete _modules_data;
@@ -91,7 +92,7 @@ namespace
     return _get_modules_data()->_modules_mutex;
   }
 
-  module_data module(const mkt::var_string& mod_name)
+  module_data module(const mkt::mkt_str& mod_name)
   {
     using namespace mkt;
     using namespace boost;
@@ -137,39 +138,37 @@ namespace
     mkt::argument_vector lm = mkt::loaded_modules();
     mkt::ret_val(mkt::join(lm));
   }
-
-  class init_commands
-  {
-  public:
-    init_commands()
-    {
-      using namespace std;
-      using namespace mkt;
-
-      add_command("import", import, "import <module>\nLoads a module into this process.");
-      add_command("expunge", expunge, "expunge <module>\nUnloads a module from this process.");
-      add_command("loaded_modules", loaded_modules, "Returns list of loaded modules.");
-    }
-  } init_commands_static_init;
 }
 
 // Modules API implementation
 namespace mkt 
 {
-  map_change_signal modules_changed;
-  map_change_signal module_pre_init;
-  map_change_signal module_post_init;
-  map_change_signal module_pre_final;
-  map_change_signal module_post_final;
+  MKT_DEF_MAP_CHANGE_SIGNAL(modules_changed);
+  MKT_DEF_MAP_CHANGE_SIGNAL(module_pre_init);
+  MKT_DEF_MAP_CHANGE_SIGNAL(module_post_init);
+  MKT_DEF_MAP_CHANGE_SIGNAL(module_pre_final);
+  MKT_DEF_MAP_CHANGE_SIGNAL(module_post_final);
 
   void init_modules() 
   {
+    using namespace std;
+    using namespace mkt;
+
+    add_command("import", ::import, "import <module>\nLoads a module into this process.");
+    add_command("expunge", ::expunge, "expunge <module>\nUnloads a module from this process.");
+    add_command("loaded_modules", ::loaded_modules, "Returns list of loaded modules.");
+
     //set the default module path to be the CWD
     if(!has_var("sys.ld"))
       var("sys.ld", ".");
   }
 
-  var_string import_module(const var_string& mod_name)
+  void final_modules()
+  {
+    //TODO: cleanup, remove modules and commands, etc.
+  }
+
+  mkt_str import_module(const mkt_str& mod_name)
   {
     using namespace std;
     using namespace boost;
@@ -191,18 +190,18 @@ namespace mkt
     }
 
     // check all known locations of possible modules
-    var_string mod_path = var("sys.ld");
+    mkt_str mod_path = var("sys.ld");
     argument_vector paths;
     split(paths, mod_path, is_any_of(":"), token_compress_on);
     path module_path;
     bool found = false;
     argument_vector searched_paths;
-    BOOST_FOREACH(var_string& cur_path, paths)
+    BOOST_FOREACH(mkt_str& cur_path, paths)
       {
 	trim(cur_path);
 	path p(cur_path);
 
-	boost::array<var_string, 5> mod_filenames =
+	boost::array<mkt_str, 5> mod_filenames =
 	  {
 	    "lib" + mod_name + ".so",
 	    mod_name + ".so",
@@ -211,10 +210,10 @@ namespace mkt
 	    mod_name
 	  };
 
-	BOOST_FOREACH(var_string& mod_filename, mod_filenames)
+	BOOST_FOREACH(mkt_str& mod_filename, mod_filenames)
 	  {
 	    module_path = p / mod_filename;
-	    searched_paths.push_back(var_string(module_path.c_str()));
+	    searched_paths.push_back(mkt_str(module_path.c_str()));
 	    if(exists(module_path))
 	      {
 		found = true;
@@ -262,24 +261,24 @@ namespace mkt
       }
     md.final = func(final_func);
     
-    md.filename = var_string(module_path.c_str());
+    md.filename = mkt_str(module_path.c_str());
 
     {
       unique_lock lock(modules_mutex());
       module_map()[mod_name] = md;
     }
-    modules_changed(mod_name);
+    modules_changed()(mod_name);
 #else
     throw not_implemented_error(str(format("%1%: Only UNIX dynamic library support for now...")
 				    % BOOST_CURRENT_FUNCTION));
 #endif
 
     // call module init function
-    module_pre_init(mod_name);
+    module_pre_init()(mod_name);
     md.init();
-    module_post_init(mod_name);
+    module_post_init()(mod_name);
 
-    return var_string(module_path.c_str());
+    return mkt_str(module_path.c_str());
   }
 
   argument_vector loaded_modules()
@@ -298,7 +297,7 @@ namespace mkt
     return av;
   }
 
-  void expunge_module(const var_string& mod_name)
+  void expunge_module(const mkt_str& mod_name)
   {
     using namespace boost;
     thread_info ti(BOOST_CURRENT_FUNCTION);
@@ -314,16 +313,16 @@ namespace mkt
     }
 
     // call module final function
-    module_pre_final(mod_name);
+    module_pre_final()(mod_name);
     md.final();
-    module_post_final(mod_name);
+    module_post_final()(mod_name);
     if(::dlclose(md.h))
       throw modules_error(str(format("Error closing module %1%: %2%\n")
 			      % mod_name
 			      % ::dlerror()));
   }
 
-  bool is_loaded_module(const var_string& mod_name)
+  bool is_loaded_module(const mkt_str& mod_name)
   {
     unique_lock lock(modules_mutex());
     if(module_map().find(mod_name) ==
@@ -334,21 +333,7 @@ namespace mkt
 
   bool valid_module_name(const std::string& str)
   {
-    using namespace std;
-    using namespace boost;
-    // C identifier regex
-    // http://bit.ly/1MExKtn
-    regex expr("^[_a-zA-Z][_a-zA-Z0-9]{0,30}$");
-    match_results<string::const_iterator> what;
-    match_flag_type flags = match_default;
-    try
-      {
-	if(regex_search(str.begin(), str.end(),
-			what, expr, flags))
-	  return true;
-      }
-    catch(...){}
-    return false;
+    return valid_identifier(str);
   }
 
   bool modules_at_exit() { return _modules_atexit; }

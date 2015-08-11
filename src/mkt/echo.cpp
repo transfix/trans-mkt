@@ -100,27 +100,15 @@ namespace
     mkt::out(echo_id).stream() << echo_str;
     if(newline) mkt::out(echo_id).stream() << std::endl;
   }
-
-  class init_commands
-  {
-  public:
-    init_commands()
-    {
-      using namespace std;
-      using namespace mkt;
-      add_command("echo", echo,
-                  "Prints out all arguments after echo to standard out.");
-    }
-  } init_commands_static_init;
 }
 
 //Echo API implementation
 namespace mkt
 {
-  echo_func_map_changed_signal echo_function_registered;
-  echo_func_map_changed_signal echo_function_unregistered;
-  echo_signal echo_pre_exec;
-  echo_signal echo_post_exec;
+  MKT_DEF_SIGNAL(echo_func_map_changed_signal, echo_function_registered);
+  MKT_DEF_SIGNAL(echo_func_map_changed_signal, echo_function_unregistered);
+  MKT_DEF_SIGNAL(echo_signal, echo_pre_exec);
+  MKT_DEF_SIGNAL(echo_signal, echo_post_exec);
 
   void echo_register(int64 id, const echo_func& f)
   {
@@ -129,7 +117,7 @@ namespace mkt
       unique_lock lock(echo_map_mutex_ref());
       echo_map_ref()[id] = f;
     }
-    echo_function_registered(id);
+    echo_function_registered()(id);
   }
 
   void echo_unregister(int64 id)
@@ -139,7 +127,7 @@ namespace mkt
       unique_lock lock(echo_map_mutex_ref());
       echo_map_ref()[id] = echo_func();
     }
-    echo_function_unregistered(id);
+    echo_function_unregistered()(id);
   }
 
   void echo(const std::string& str)
@@ -181,13 +169,13 @@ namespace mkt
 
     thread_info ti(BOOST_CURRENT_FUNCTION);
 
-    echo_pre_exec(echo_function_id, str);
+    echo_pre_exec()(echo_function_id, str);
     {
       unique_lock lock(echo_map_mutex_ref());
       if(echo_map_ref()[echo_function_id])
 	echo_map_ref()[echo_function_id](str);
     }
-    echo_post_exec(echo_function_id, str);
+    echo_post_exec()(echo_function_id, str);
   }
 
   //the default echo function
@@ -203,6 +191,11 @@ namespace mkt
 
   void init_echo()
   {
+    using namespace std;
+    using namespace mkt;
+    add_command("echo", ::echo,
+		"Prints out all arguments after echo to standard out.");
+
     //setup echo so it outputs to console
     echo_register(0, boost::bind(mkt::do_echo, &std::cout, _1));
     echo_register(1, boost::bind(mkt::do_echo, &std::cerr, _1));
@@ -210,6 +203,11 @@ namespace mkt
     echo_register(2, mkt::do_remote_echo);
 #endif
     var("sys.echo_functions", "0, 2");
+  }
+
+  void final_echo()
+  {
+    // TODO: any cleanup
   }
 
   bool echo_at_exit() { return _echo_atexit; }

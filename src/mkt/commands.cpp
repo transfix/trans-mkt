@@ -3,6 +3,7 @@
 #include <mkt/threads.h>
 #include <mkt/vars.h>
 #include <mkt/echo.h>
+#include <mkt/utils.h>
 
 #ifdef MKT_INTERACTIVE
 #ifdef __WINDOWS__
@@ -41,7 +42,6 @@ namespace
   };
   commands_data     *_commands_data = 0;
   bool               _commands_atexit = false;
-  bool               _commands_post_static_init = false;
 
   void _cmds_cleanup()
   {
@@ -84,6 +84,11 @@ namespace
     if(!mkt::has_var("PS1") || mkt::var("PS1") == "")
       mkt::var("PS1", "mkt> "); //default prompt
   }
+
+  inline void cmd_check_name(const mkt::mkt_str& str)
+  {
+    mkt::check_identifier<mkt::command_error>(str);
+  }
 }
 
 //Default system commands
@@ -98,7 +103,7 @@ namespace
     cmd_restore_prompt();
 
     char *line;
-    while(line = readline(mkt::expand_vars(mkt::var("PS1")).c_str()))
+    while((line = readline(mkt::expand_vars(mkt::var("PS1")).c_str())))
       {
 	mkt::mkt_str str_line(line);
         add_history(line);
@@ -120,9 +125,9 @@ namespace
           }
 
 	//output the contents of the retval to the output stream
-	mkt::var_string rv = mkt::var("_");
+	mkt::mkt_str rv = mkt::var("_");
 	mkt::out().stream() << "_ <- \"" << rv << "\"" << endl;
-	mkt::ret_val(mkt::var_string());
+	mkt::ret_val(mkt::mkt_str());
 
 	cmd_restore_prompt();
       }
@@ -255,7 +260,16 @@ namespace
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     mkt::ret_val(mkt::version());
   }
-  
+}
+
+//API implementation
+namespace mkt
+{
+  MKT_DEF_MAP_CHANGE_SIGNAL(command_added);
+  MKT_DEF_MAP_CHANGE_SIGNAL(command_removed);
+  MKT_DEF_SIGNAL(command_exec_signal, command_pre_exec);
+  MKT_DEF_SIGNAL(command_exec_signal, command_post_exec);
+
   //commands TODO:
   //macro - command list, creates a new command. like serial but it doesnt call.  uses 'then' keyword.
   //        $argc represents number of macro arguments when called, and $argv_0000 ... $argv_9999 represents the args 
@@ -271,39 +285,26 @@ namespace
   //cpp-netlib for http requests & http server
 
   //Default set of commands.
-  class init_commands
-  {
-  public:
-    init_commands()
-    {
-      using namespace std;
-      using namespace mkt;
-      
-#ifdef MKT_INTERACTIVE
-      add_command("cmd", cmd, "starts an interactive command prompt.");
-#endif
-      add_command("file", file,
-                  "file <file path> - \n"
-                  "Executes commands listed in a file, line by line sequentially.");
-      add_command("help", help, "Prints command list.");
-      add_command("repeat", repeat, "repeat <num times> <command> -\nRepeat command.");
-      add_command("serial", serial, "Execute commands serially separated by a 'then' keyword.");
-      add_command("version", version, "Returns the system version string.");
-    }
-  } init_commands_static_init;
-}
-
-//API implementation
-namespace mkt
-{
-  map_change_signal   command_added;
-  map_change_signal   command_removed;
-  command_exec_signal command_pre_exec;
-  command_exec_signal command_post_exec;
-
   void init_commands()
   {
-    _commands_post_static_init = true; //safe to fire signals
+    using namespace std;
+    using namespace mkt;
+    
+#ifdef MKT_INTERACTIVE
+    add_command("cmd", cmd, "starts an interactive command prompt.");
+#endif
+    add_command("file", file,
+		"file <file path> - \n"
+		"Executes commands listed in a file, line by line sequentially.");
+    add_command("help", help, "Prints command list.");
+    add_command("repeat", repeat, "repeat <num times> <command> -\nRepeat command.");
+    add_command("serial", serial, "Execute commands serially separated by a 'then' keyword.");
+    add_command("version", ::version, "Returns the system version string.");    
+  }
+
+  void final_commands()
+  {
+    //TODO: any cleanup (like removing commands)
   }
 
   void add_command(const mkt_str& name,
@@ -316,8 +317,7 @@ namespace mkt
       unique_lock lock(cmds_lock());
       cmds()[name] = make_tuple(func, desc);
     }
-    if(_commands_post_static_init)
-      command_added(name);
+    command_added()(name);
   }
 
   void remove_command(const mkt_str& name)
@@ -327,8 +327,7 @@ namespace mkt
       unique_lock lock(cmds_lock());
       cmds().erase(name);
     }
-    if(_commands_post_static_init)
-      command_removed(name);
+    command_removed()(name);
   }
 
   argument_vector get_commands()
@@ -381,9 +380,9 @@ namespace mkt
     //finally call it
     push_vars();
     var("_", ""); //reset the return val for this stack frame
-    command_pre_exec(local_args, vars_main_stackname());
+    command_pre_exec()(local_args, vars_main_stackname());
     cmd.get<0>()(local_args);
-    command_post_exec(local_args, vars_main_stackname());
+    command_post_exec()(local_args, vars_main_stackname());
     pop_vars();
   }
 
@@ -403,7 +402,7 @@ namespace mkt
     //handle escape codes in each argument in the vector
     if(escape)
       {
-	typedef array<array<string, 2>, 8> codes_array;
+	typedef boost::array<boost::array<string, 2>, 8> codes_array;
 	codes_array codes =
 	  {
 	    {

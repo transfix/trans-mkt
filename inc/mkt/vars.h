@@ -17,20 +17,22 @@ namespace mkt
   /*
    * Variable API
    */
-  typedef mkt_str                                   var_string;
-  typedef std::map<var_string, var_string>          variable_map;
+  typedef std::map<mkt_str, mkt_str>                variable_map;
   typedef std::vector<variable_map>                 variable_map_stack;
   typedef boost::tuple<
-    var_string,  //thread key 
-    var_string   //stack name
+    mkt_str,  //thread key 
+    mkt_str   //stack name
     > variable_map_stacks_key;
   typedef variable_map_stacks_key                   vms_key; //shorthand
   typedef std::map<vms_key, 
                    variable_map_stack>              variable_map_stacks;
-  const var_string& vars_main_stackname();
+  const mkt_str& vars_main_stackname();
   const vms_key& vars_variable_map_stacks_key_default();
   inline const vms_key& vms_key_def() //shorthand for the above
     { return vars_variable_map_stacks_key_default(); }
+
+  void init_vars();
+  void final_vars();
 
   class var_context
   {
@@ -66,16 +68,16 @@ namespace mkt
     vms_key _key;
   };
 
-  var_string var(const var_string& varname, 
-		 const var_context& context = var_context());
-
-  void var(const var_string& varname, const var_string& val,
+  mkt_str var(const mkt_str& varname, 
+	      const var_context& context = var_context());
+  
+  void var(const mkt_str& varname, const mkt_str& val,
 	   const var_context& context = var_context());
 
-  void unset_var(const var_string& varname,
+  void unset_var(const mkt_str& varname,
 		 const var_context& context = var_context());
 
-  bool has_var(const var_string& varname,
+  bool has_var(const mkt_str& varname,
 	       const var_context& context = var_context());
 
   argument_vector list_vars(const var_context& context = var_context());
@@ -86,18 +88,18 @@ namespace mkt
 
   typedef boost::
     signals2::
-    signal<void (const var_string&, const var_context&)> 
+    signal<void (const mkt_str&, const var_context&)> 
     var_change_signal;
-  extern var_change_signal var_changed;
+  var_change_signal& var_changed();
   
   //template shortcuts for casting var values
   template <class T>
-    inline T var(const var_string& varname)
+    inline T var(const mkt_str& varname)
     {
       thread_info ti(BOOST_CURRENT_FUNCTION);
       using namespace boost;
       T val;
-      var_string str_val = var(varname);
+      mkt_str str_val = var(varname);
       try
         {
           val = string_cast<T>(str_val);
@@ -111,13 +113,13 @@ namespace mkt
     }
   
   template <class T>
-    inline void var(const var_string& varname, const T& val)
+    inline void var(const mkt_str& varname, const T& val)
     {
       thread_info ti(BOOST_CURRENT_FUNCTION);
-      var_string str_val;
+      mkt_str str_val;
       try
         {
-          str_val = boost::lexical_cast<var_string>(val);
+          str_val = boost::lexical_cast<mkt_str>(val);
         }
       catch(boost::bad_lexical_cast&)
         {
@@ -129,10 +131,10 @@ namespace mkt
 
   //specializations for bool
   template <> 
-    inline bool var<bool>(const var_string& varname)
+    inline bool var<bool>(const mkt_str& varname)
     {
       thread_info ti(BOOST_CURRENT_FUNCTION);
-      var_string str_var = var(varname);
+      mkt_str str_var = var(varname);
       if(str_var.empty()) return false;
       if(str_var == "true") return true;
       if(str_var == "false") return false;
@@ -141,10 +143,10 @@ namespace mkt
     }
 
   template <>
-    inline void var<bool>(const var_string& varname, const bool& val)
+    inline void var<bool>(const mkt_str& varname, const bool& val)
     {
       thread_info ti(BOOST_CURRENT_FUNCTION);
-      var_string str_val = val ? "true" : "false";
+      mkt_str str_val = val ? "true" : "false";
       var(varname, str_val);
     }
 
@@ -158,13 +160,13 @@ namespace mkt
 
   //Splits a string into an argument vector, taking into account
   //quote characters for argument values with spaces.
-  argument_vector split(const var_string& args);
+  argument_vector split(const mkt_str& args);
 
   //joins an argument vector into a single string
-  var_string join(const argument_vector& args);    
+  mkt_str join(const argument_vector& args);    
 
   //expands any variable names in the string to their values
-  var_string expand_vars(const var_string& args);
+  mkt_str expand_vars(const mkt_str& args);
 
   bool vars_at_exit();
 }

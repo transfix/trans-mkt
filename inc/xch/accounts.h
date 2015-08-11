@@ -71,7 +71,7 @@ namespace xch
     transaction_query& begin(ptime b) { _begin = b; return *this; }
     transaction_query& end(ptime e) { _end = e; return *this; }
     transaction_query& to_account_id(account_id_t tid) { _to_account_id = tid; return *this; }
-    transaction_query& from_account_id(account_id_t fid) { _from_account_id; return *this; }
+    transaction_query& from_account_id(account_id_t fid) { _from_account_id = fid; return *this; }
     transaction_query& asset_id(asset_id_t aid) { _asset_id = aid; return *this; }
     transaction_query& min_amount(double min_a) { _min_amount = min_a; return *this; }
     transaction_query& max_amount(double max_a) { _max_amount = max_a; return *this; }

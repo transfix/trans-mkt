@@ -102,9 +102,12 @@ namespace
     if(!le_p) return;
     BOOST_FOREACH(log_entries::value_type cur, *le_p)
       {
-	ss << str(format("\"%1%\", \"%2%\"")
+	if(!cur.second) continue;
+	log_entry& le = *cur.second;
+	ss << str(format("\"%1%\", \"%2%\", \"%3%\"")
 		  % ptime_to_str(cur.first)
-		  % (cur.second ? cur.second->get<0>() : mkt_str()))
+		  % mkt::thread_key(le.get<2>())
+		  % le.get<0>())
 	   << endl; 
       }
     ret_val(ss.str());
@@ -138,35 +141,12 @@ namespace
     mkt_str message = join(local_args);
     log(queue, message);
   }
-
-  class init_commands
-  {
-  public:
-    init_commands()
-    {
-      using namespace std;
-      using namespace mkt;
-
-      add_command("get_logs", get_logs_cmd, 
-		  "get_logs [begin time] [end time] [queue regex]\n"
-		  "Returns all logs between begin time and end time. "
-		  "If begin time isn't specified, the posix time epoch is assumed. "
-		  "If end time isn't specified, 'now' is assumed. [queue regex] is a "
-		  "regular expression used to select which log queue to read from. "
-		  "Default is '.*'");
-      add_command("get_log_queues", get_log_queues_cmd,
-		  "Returns a list of log queues");
-      add_command("log", log_cmd, 
-		  "log <queue name> <message>\n"
-		  "Posts a message to the specified message queue.");
-    }
-  } init_commands_static_init;
 }
 
 // Log API implementation
 namespace mkt
 {
-  void var_changed_slot(const var_string& varname, const var_context& context)
+  void var_changed_slot(const mkt_str& varname, const var_context& context)
   {
     using namespace boost;
     log("vars",str(format("variable changed: %1% %2% %3% %4%")
@@ -176,11 +156,11 @@ namespace mkt
 		   % context.key().get<1>()));
   }
 
-  class map_change_slot
+  class map_change_log_slot
   {
   public:
-    map_change_slot(const mkt_str& queue_str = mkt_str("default"),
-		    const mkt_str& slot_str = mkt_str()) : 
+    map_change_log_slot(const mkt_str& queue_str = mkt_str("default"),
+			const mkt_str& slot_str = mkt_str()) : 
       _queue_str(queue_str),
       _str(slot_str) {}
     void operator()(const mkt_str& changed_key)
@@ -197,9 +177,27 @@ namespace mkt
 
   void init_log()
   {
-    var_changed.connect(var_changed_slot);
-    command_added.connect(map_change_slot("commands","command_added"));
-    command_removed.connect(map_change_slot("commands","command_removed"));
+    using namespace std;
+    using namespace mkt;
+    
+    add_command("get_logs", get_logs_cmd, 
+		"get_logs [begin time] [end time] [queue regex]\n"
+		"Returns all logs between begin time and end time. "
+		"If begin time isn't specified, the posix time epoch is assumed. "
+		"If end time isn't specified, 'now' is assumed. [queue regex] is a "
+		"regular expression used to select which log queue to read from. "
+		"Default is '.*'");
+    add_command("get_log_queues", get_log_queues_cmd,
+		"Returns a list of log queues");
+    add_command("log", log_cmd, 
+		"log <queue name> <message>\n"
+		"Posts a message to the specified message queue.");
+
+    var_changed().connect(var_changed_slot);
+    command_added().
+      connect(map_change_log_slot("commands","command_added"));
+    command_removed().
+      connect(map_change_log_slot("commands","command_removed"));
   }
 
   void final_log()
@@ -207,10 +205,11 @@ namespace mkt
 
   }
 
-  //TODO: make sure queue names are like C identifiers
   void log(const mkt_str& queue, const mkt_str& message, const any& data)
   {
     thread_info ti(BOOST_CURRENT_FUNCTION);
+    check_identifier<mkt::log_error>(queue);
+
     {
       unique_lock lock(log_mutex_ref());
       log_entry_queues& leq = log_entry_queues_ref();
@@ -219,7 +218,8 @@ namespace mkt
       log_entries& le = *leq[queue];
 
       ptime cur_time = boost::posix_time::microsec_clock::universal_time();
-      log_entry_ptr le_p(new log_entry(message, data));
+      log_entry_ptr le_p(new log_entry(message, data,
+				       boost::this_thread::get_id()));
       le.insert(log_entries::value_type(cur_time, le_p));
     }
   }

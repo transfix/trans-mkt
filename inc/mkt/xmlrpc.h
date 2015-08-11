@@ -7,6 +7,9 @@
 
 namespace mkt
 {
+  void init_xmlrpc();
+  void final_xmlrpc();
+
   std::string get_local_ip_address();
   int default_port();
   void run_xmlrpc_server(int port = 31337);

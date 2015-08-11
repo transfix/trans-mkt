@@ -3,6 +3,7 @@
 #include <mkt/exceptions.h>
 #include <mkt/echo.h>
 #include <mkt/commands.h>
+#include <mkt/utils.h>
 
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/join.hpp>
@@ -114,7 +115,7 @@ namespace
   };
   vars_data                    *_vars_data = 0;
   bool                          _vars_atexit = false;
-  const mkt::var_string&        _vars_main_stackname("main");
+  const mkt::mkt_str&           _vars_main_stackname("main");
   const mkt::variable_map_stacks_key& _vars_variable_map_stacks_key_default(
 	     boost::make_tuple(mkt::thread_key(),
 			       mkt::vars_main_stackname()));
@@ -145,8 +146,8 @@ namespace
 
   using namespace boost::tuples;
 
-  size_t var_map_stack_size(const mkt::vms_key& key = 
-			    mkt::vms_key_def())
+  inline size_t var_map_stack_size(const mkt::vms_key& key = 
+				   mkt::vms_key_def())
   {
     return _get_vars_data()->_var_map_stacks[key].size();
   }
@@ -174,7 +175,7 @@ namespace
     if(no_locals)
       {
 	//collect the local var names from the current stack frame
-	std::set<mkt::var_string> local_vars;
+	std::set<mkt::mkt_str> local_vars;
 	BOOST_FOREACH(const mkt::variable_map::value_type& cur, vm)
 	  {
 	    if(cur.first[0]=='_')
@@ -182,7 +183,7 @@ namespace
 	  }
 	
 	//now remove them from the variable map copy
-	BOOST_FOREACH(const mkt::var_string& var_name, local_vars)
+	BOOST_FOREACH(const mkt::mkt_str& var_name, local_vars)
 	  vm.erase(var_name);
       }
 
@@ -214,7 +215,7 @@ namespace
     //dont lose changes to globals. Also copy the local _ var to
     //act as a return value.
     mkt::variable_map vm = var_map_ref(mkt::var_context(0,key));
-    std::set<mkt::var_string> local_vars;
+    std::set<mkt::mkt_str> local_vars;
     BOOST_FOREACH(const mkt::variable_map::value_type& cur, vm)
       {
 	if(cur.first[0]=='_' && cur.first!="_")
@@ -222,7 +223,7 @@ namespace
       }
 
     //remove flagged local vars from the variable map copy
-    BOOST_FOREACH(const mkt::var_string& var_name, local_vars)
+    BOOST_FOREACH(const mkt::mkt_str& var_name, local_vars)
       vm.erase(var_name);
 
     if(!vms.empty()) vms.pop_back();
@@ -236,9 +237,14 @@ namespace
     var_map_ref(mkt::var_context(0,key)) = lower_vm;
   }
 
-  mkt::mutex& var_map_mutex_ref()
+  inline mkt::mutex& var_map_mutex_ref()
   {
     return _get_vars_data()->_var_map_mutex;
+  }
+
+  inline void var_check_name(const mkt::mkt_str& varname)
+  {
+    mkt::check_identifier<mkt::vars_error>(varname);
   }
 }
 
@@ -284,7 +290,7 @@ namespace
       {
         mkt::argument_vector vars = mkt::list_vars(mkt::var_context(1));
 	std::stringstream ss;
-        BOOST_FOREACH(const mkt::var_string& cur_var, vars)
+        BOOST_FOREACH(const mkt::mkt_str& cur_var, vars)
           {
             ss << "set " << cur_var 
 	       << " \"" << mkt::var(cur_var, mkt::var_context(1)) << "\"" << std::endl;
@@ -301,7 +307,7 @@ namespace
     //globals set via this command.
     //TODO: this all doesn't sit well with me... fix it!!!!!!!
     mkt::argument_vector vars = mkt::list_vars(mkt::var_context(0));
-    BOOST_FOREACH(const mkt::var_string& cur_var, vars)
+    BOOST_FOREACH(const mkt::mkt_str& cur_var, vars)
       {
 	mkt::unset_var(cur_var, mkt::var_context(0));
       }
@@ -328,7 +334,7 @@ namespace
     if(args.size()<2)
       throw mkt::command_error("Missing arguments for unset");
 
-    mkt::var_string ret = mkt::var(args[1], mkt::var_context(1));
+    mkt::mkt_str ret = mkt::var(args[1], mkt::var_context(1));
     mkt::unset_var(args[1], mkt::var_context(1));
     
     //return the value that was unset
@@ -340,91 +346,97 @@ namespace
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     mkt::ret_val(mkt::vars_stack_size());
   }
-
-  class init_commands
-  {
-  public:
-    init_commands()
-    {
-      using namespace std;
-      using namespace mkt;
-
-      add_command("get", get, "get <varname>\nReturns the contents of a variable.");
-      add_command("has_var", has_var, "Returns true or false whether the variable exists or not.");
-      //add_command("pop", pop, "Pops the variable stack.");
-      //add_command("push", push, "Pushes the variable stack.");
-      add_command("set", set, "set [<varname> <value>]\n"
-                  "Sets a variable to the value specified.  If none, prints all variables in the system.");
-      add_command("stack_size", stack_size, 
-		  "Returns the number of levels in the stack for the current thread.");
-      add_command("unset", unset, "unset <varname>\nRemoves a variable from the system.");
-    }
-  } init_commands_static_init;
 }
 
 //variable API implementation
 //TODO: need to verify var names such that they are strings like C identifiers
 namespace mkt
 {
-  const var_string& vars_main_stackname() { return _vars_main_stackname; }
+  const mkt_str& vars_main_stackname() { return _vars_main_stackname; }
   const vms_key& vars_variable_map_stacks_key_default()
   {
     return _vars_variable_map_stacks_key_default; 
   }
 
-  var_string var(const var_string& varname,
-		 const var_context& context)
+  MKT_DEF_SIGNAL(var_change_signal, var_changed);
+
+  void init_vars()
+  {
+    using namespace std;
+    using namespace mkt;
+
+    add_command("get", ::get, "get <varname>\nReturns the contents of a variable.");
+    add_command("has_var", ::has_var, "Returns true or false whether the variable exists or not.");
+    //add_command("pop", pop, "Pops the variable stack.");
+    //add_command("push", push, "Pushes the variable stack.");
+    add_command("set", ::set, "set [<varname> <value>]\n"
+		"Sets a variable to the value specified.  If none, prints all variables in the system.");
+    add_command("stack_size", ::stack_size, 
+		"Returns the number of levels in the stack for the current thread.");
+    add_command("unset", ::unset, "unset <varname>\nRemoves a variable from the system.");
+  }
+
+  void final_vars()
+  {
+    //TODO: any cleanup...
+  }
+
+  mkt_str var(const mkt_str& varname,
+	      const var_context& context)
   {
     thread_info ti(BOOST_CURRENT_FUNCTION);
     bool creating = false;
-    var_string val;
+    mkt_str val;
     {
       unique_lock lock(var_map_mutex_ref());
       variable_map& vm = var_map_ref(context);
       if(vm.find(varname)==vm.end()) creating = true;
+      if(creating) var_check_name(varname);
       val = vm[varname];
     }
     
-    if(creating) var_changed(varname, context);
+    if(creating) var_changed()(varname, context);
     return val;
   }
 
-  void var(const var_string& varname, const var_string& val,
+  void var(const mkt_str& varname, const mkt_str& val,
 	   const var_context& context)
   {
     using namespace boost::algorithm;
     thread_info ti(BOOST_CURRENT_FUNCTION);
+
+    var_check_name(varname);
     {
       unique_lock lock(var_map_mutex_ref());
-      var_string local_varname(varname); trim(local_varname);
-      var_string local_val(val);
+      mkt_str local_varname(varname); trim(local_varname);
+      mkt_str local_val(val);
       variable_map& vm = var_map_ref(context);
       if(vm[local_varname] == local_val) return; //nothing to do
       vm[local_varname] = local_val;
     }
-    var_changed(varname, context);
+    var_changed()(varname, context);
   }
 
-  void unset_var(const var_string& varname,
+  void unset_var(const mkt_str& varname,
 		 const var_context& context)
   {
     using namespace boost::algorithm;
     thread_info ti(BOOST_CURRENT_FUNCTION);
     {
       unique_lock lock(var_map_mutex_ref());
-      var_string local_varname(varname); trim(local_varname);
+      mkt_str local_varname(varname); trim(local_varname);
       var_map_ref(context).erase(local_varname);
     }
-    var_changed(varname, context);
+    var_changed()(varname, context);
   }
 
-  bool has_var(const var_string& varname,
+  bool has_var(const mkt_str& varname,
 	       const var_context& context)
   {
     using namespace boost::algorithm;
     unique_lock lock(var_map_mutex_ref());
     thread_info ti(BOOST_CURRENT_FUNCTION);    
-    var_string local_varname(varname); trim(local_varname);
+    mkt_str local_varname(varname); trim(local_varname);
     variable_map& vm = var_map_ref(context);
     if(vm.find(local_varname)==vm.end())
       return false;
@@ -439,7 +451,7 @@ namespace mkt
     variable_map& vm = var_map_ref(context);
     BOOST_FOREACH(const variable_map::value_type& cur, vm)
       {
-        var_string cur_varname = cur.first;
+        mkt_str cur_varname = cur.first;
         boost::algorithm::trim(cur_varname);
         vars.push_back(cur_varname);
       }
@@ -467,26 +479,24 @@ namespace mkt
     return var_map_stack_size(key);    
   }
 
-  var_change_signal var_changed;
-
-  argument_vector split(const var_string& args)
+  argument_vector split(const mkt_str& args)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     return ::split_winmain(args);
   }
 
-  var_string join(const argument_vector& args)
+  mkt_str join(const argument_vector& args)
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     return boost::join(args," ");
   }
 
-  var_string expand_vars(const var_string& args)
+  mkt_str expand_vars(const mkt_str& args)
   {
     using namespace std;
     using namespace boost;
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    var_string local_args(args);
+    mkt_str local_args(args);
 
     boost::array<regex, 2> exprs = 
       { 
@@ -509,10 +519,10 @@ namespace mkt
                                 local_args.end(), what, expr, flags))
                   {
                     //do the expansion
-                    var_string var_name = string(what[2]);
+                    mkt_str var_name = string(what[2]);
                     if(!has_var(var_name)) continue; //TODO: what if this throws
                     found = true;
-                    var_string expanded_arg = var(var_name);
+                    mkt_str expanded_arg = var(var_name);
                     local_args.replace(what[1].first, what[1].second,
                                        expanded_arg);
                   }

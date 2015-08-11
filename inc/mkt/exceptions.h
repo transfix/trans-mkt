@@ -40,5 +40,4 @@ namespace mkt
   MKT_DEF_EXCEPTION(not_implemented_error);
 }
 
-
 #endif

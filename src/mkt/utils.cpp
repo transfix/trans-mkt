@@ -1,4 +1,9 @@
 #include <mkt/utils.h>
+#include <mkt/commands.h>
+#include <mkt/vars.h>
+#include <mkt/echo.h>
+#include <mkt/modules.h>
+#include <mkt/log.h>
 
 #include <boost/regex.hpp>
 
@@ -17,12 +22,20 @@ namespace mkt
     try
       {
 	mkt_str local_in_str(in_str);
-	if(regex_search(local_in_str.begin(),
-			local_in_str.end(), what, expr, flags))
+	if(regex_search(local_in_str.begin(), 
+			local_in_str.end(),
+			what, expr, flags))
 	  return true;
       }
     catch(...){}
     return false;
+  }
+
+  bool valid_identifier(const mkt_str& str)
+  {
+    // C identifier regex
+    // http://bit.ly/1MExKtn
+    return matches(str, "^[_a-zA-Z][_a-zA-Z0-9]{0,30}$");
   }
 
   namespace bt = boost::posix_time;
@@ -49,5 +62,13 @@ namespace mkt
         if(pt != bt::ptime()) break;
     }
     return pt;
+  }
+
+  bool at_exit()
+  {
+    return 
+      commands_at_exit() || vars_at_exit() || 
+      threads_at_exit() || echo_at_exit() ||
+      modules_at_exit() || log_at_exit();
   }
 }

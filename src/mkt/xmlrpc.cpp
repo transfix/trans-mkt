@@ -17,10 +17,187 @@
 
 #include <iostream>
 
+// xmlrpc module exceptions
 namespace mkt
 {
   MKT_DEF_EXCEPTION(network_error);
+}
 
+//xmlrpc commands related code
+namespace
+{
+  //Creates a command that syncs a variable on a remote host with the current value here
+  class syncer
+  {
+  public:
+    syncer(const std::string& v, 
+           const std::string& h)
+      : _varname(v), _host(h) {}
+    void operator()(const std::string& in_var,
+		    const mkt::var_context& context)
+    {
+      using namespace boost::algorithm;
+      if(_varname != in_var) return;
+
+      //For now, don't sync vars that change from any other stack
+      //level other than the deepest. Also, don't sync if it's a
+      //var change outside of the main thread's default stack.
+      //TODO: change this when we make the set command support setting
+      //vars in other parts of the stack and with different keys.
+      if(context != mkt::var_context())
+	return;
+      
+      std::string val = mkt::var(in_var);
+
+      //do the remote var syncronization as an asyncronous command
+      mkt::argument_vector remote_set_args;
+      remote_set_args.push_back("async");
+      remote_set_args.push_back("wait"); //TODO: wait up to a certain amount of threads then start interrupting
+      remote_set_args.push_back("remote");
+
+      trim(_host);
+      mkt::argument_vector host_components;
+      split(host_components, _host, is_any_of(":"), token_compress_on);
+      if(host_components.empty()) throw mkt::system_error("Invalid host.");
+
+      remote_set_args.push_back(host_components[0]);
+      if(host_components.size()>=2)
+        {
+          remote_set_args.push_back("port");
+          remote_set_args.push_back(host_components[1]);
+        }
+ 
+      remote_set_args.push_back("set");
+      remote_set_args.push_back(in_var);
+      remote_set_args.push_back(val);
+      mkt::exec(remote_set_args);
+    }
+
+    bool operator==(const syncer& rhs) const
+    {
+      if(&rhs == this) return true;
+      return 
+        (_varname == rhs._varname) &&
+        (_host == rhs._host);
+    }
+
+  private:
+    std::string _varname;
+    std::string _host;
+  };
+
+  void sync_var(const mkt::argument_vector& args)
+  {
+    using namespace std;
+    using namespace boost;
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+
+    if(args.size() < 3) throw mkt::command_error("Missing arguments");
+    
+    string varname = args[1];
+    string remote_servers_string = args[2];
+
+    mkt::argument_vector remote_servers;
+    split(remote_servers, remote_servers_string, is_any_of(","), token_compress_on);
+    
+    //execute an echo with the specified string on each host listed
+    BOOST_FOREACH(string& remote_server, remote_servers)
+      {
+        trim(remote_server); //get rid of whitespace between ',' chars
+        mkt::argument_vector remote_host_components;
+        split(remote_host_components, remote_server,
+              is_any_of(":"), token_compress_on);
+        if(remote_host_components.empty()) continue;
+	//TODO: do something with port
+        int port = mkt::default_port();
+        std::string host = remote_host_components[0];
+        if(remote_host_components.size()>=2)
+          port = lexical_cast<int>(remote_host_components[1]);
+
+        mkt::var_changed().connect(syncer(varname, remote_server));
+      }    
+  }
+
+  void unsync_var(const mkt::argument_vector& args)
+  {
+    using namespace std;
+    using namespace boost;
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+
+    if(args.size() < 3) throw mkt::command_error("Missing arguments");
+    
+    string varname = args[1];
+    string remote_servers_string = args[2];
+
+    mkt::argument_vector remote_servers;
+    split(remote_servers, remote_servers_string, is_any_of(","), token_compress_on);
+    
+    //disconnect the syncer associated with each remote host that matches
+    BOOST_FOREACH(string& remote_server, remote_servers)
+      {
+        trim(remote_server); //get rid of whitespace between ',' chars
+        mkt::argument_vector remote_host_components;
+        split(remote_host_components, remote_server,
+              is_any_of(":"), token_compress_on);
+        if(remote_host_components.empty()) continue;
+	//TODO: do something with port
+        int port = mkt::default_port();
+        std::string host = remote_host_components[0];
+        if(remote_host_components.size()>=2)
+          port = lexical_cast<int>(remote_host_components[1]);
+
+        mkt::var_changed().disconnect(syncer(varname, remote_server));
+      }
+  }
+
+  void local_ip(const mkt::argument_vector& args)
+  {
+    using namespace std;
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    mkt::ret_val(mkt::get_local_ip_address());
+  }
+
+  void remote(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);    
+    mkt::argument_vector local_args = args;
+    local_args.erase(local_args.begin());
+    if(local_args.size() < 2)
+      throw mkt::command_error("Missing arguments");
+    
+    std::string host = local_args[0];
+    local_args.erase(local_args.begin());
+
+    int port = 31337;
+    //look for port keyword
+    //TODO: support ':' host/port separator
+    if(local_args[0] == "port")
+      {
+        local_args.erase(local_args.begin());
+        if(local_args.empty())
+          throw mkt::command_error("Missing arguments");
+        port = boost::lexical_cast<int>(local_args[0]);
+        local_args.erase(local_args.begin());
+      }
+
+    mkt::exec_remote(local_args, host, port);
+  }  
+
+  void server(const mkt::argument_vector& args)
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    
+    int port = 31337;
+    if(args.size()>=2)
+      port = boost::lexical_cast<int>(args[1]);
+    
+    mkt::run_xmlrpc_server(port);
+  }
+}
+
+// xmlrpc module API implementation
+namespace mkt
+{
   //From http://bit.ly/ADIcC1
   std::string get_local_ip_address()
   {
@@ -193,196 +370,27 @@ namespace mkt
           }
       }
   }
-}
 
-//xmlrpc commands related code
-namespace
-{
-  //Creates a command that syncs a variable on a remote host with the current value here
-  class syncer
-  {
-  public:
-    syncer(const std::string& v, 
-           const std::string& h)
-      : _varname(v), _host(h) {}
-    void operator()(const std::string& in_var,
-		    const mkt::var_context& context)
-    {
-      using namespace boost::algorithm;
-      if(_varname != in_var) return;
-
-      //For now, don't sync vars that change from any other stack
-      //level other than the deepest. Also, don't sync if it's a
-      //var change outside of the main thread's default stack.
-      //TODO: change this when we make the set command support setting
-      //vars in other parts of the stack and with different keys.
-      if(context != mkt::var_context())
-	return;
-      
-      std::string val = mkt::var(in_var);
-
-      //do the remote var syncronization as an asyncronous command
-      mkt::argument_vector remote_set_args;
-      remote_set_args.push_back("async");
-      remote_set_args.push_back("wait"); //TODO: wait up to a certain amount of threads then start interrupting
-      remote_set_args.push_back("remote");
-
-      trim(_host);
-      mkt::argument_vector host_components;
-      split(host_components, _host, is_any_of(":"), token_compress_on);
-      if(host_components.empty()) throw mkt::system_error("Invalid host.");
-
-      remote_set_args.push_back(host_components[0]);
-      if(host_components.size()>=2)
-        {
-          remote_set_args.push_back("port");
-          remote_set_args.push_back(host_components[1]);
-        }
- 
-      remote_set_args.push_back("set");
-      remote_set_args.push_back(in_var);
-      remote_set_args.push_back(val);
-      mkt::exec(remote_set_args);
-    }
-
-    bool operator==(const syncer& rhs) const
-    {
-      if(&rhs == this) return true;
-      return 
-        (_varname == rhs._varname) &&
-        (_host == rhs._host);
-    }
-
-  private:
-    std::string _varname;
-    std::string _host;
-  };
-
-  void sync_var(const mkt::argument_vector& args)
+  void init_xmlrpc()
   {
     using namespace std;
-    using namespace boost;
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-
-    if(args.size() < 3) throw mkt::command_error("Missing arguments");
+    using namespace mkt;
     
-    string varname = args[1];
-    string remote_servers_string = args[2];
-
-    mkt::argument_vector remote_servers;
-    split(remote_servers, remote_servers_string, is_any_of(","), token_compress_on);
-    
-    //execute an echo with the specified string on each host listed
-    BOOST_FOREACH(string& remote_server, remote_servers)
-      {
-        trim(remote_server); //get rid of whitespace between ',' chars
-        mkt::argument_vector remote_host_components;
-        split(remote_host_components, remote_server,
-              is_any_of(":"), token_compress_on);
-        if(remote_host_components.empty()) continue;
-        int port = mkt::default_port();
-        std::string host = remote_host_components[0];
-        if(remote_host_components.size()>=2)
-          port = lexical_cast<int>(remote_host_components[1]);
-
-        mkt::var_changed.connect(syncer(varname, remote_server));
-      }    
+    add_command("local_ip", ::local_ip, 
+		"Prints the local ip address of the default interface.");
+    add_command("remote", ::remote, 
+		"remote <host> [port <port>] <command> -\n"
+		"Executes a command on the specified host.");
+    add_command("server", ::server, 
+		"server <port>\nStart an xmlrpc server at the specified port.");
+    add_command("sync_var", ::sync_var, "sync_var <varname> <remote host comma separated list> -\n"
+		"Keeps variables syncronized across hosts.");
+    add_command("unsync_var", ::unsync_var, "unsync_var <varname> <remote host comma separated list> -\n"
+		"Disconnects variable syncronization across hosts.");    
   }
 
-  void unsync_var(const mkt::argument_vector& args)
+  void final_xmlrpc()
   {
-    using namespace std;
-    using namespace boost;
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-
-    if(args.size() < 3) throw mkt::command_error("Missing arguments");
-    
-    string varname = args[1];
-    string remote_servers_string = args[2];
-
-    mkt::argument_vector remote_servers;
-    split(remote_servers, remote_servers_string, is_any_of(","), token_compress_on);
-    
-    //disconnect the syncer associated with each remote host that matches
-    BOOST_FOREACH(string& remote_server, remote_servers)
-      {
-        trim(remote_server); //get rid of whitespace between ',' chars
-        mkt::argument_vector remote_host_components;
-        split(remote_host_components, remote_server,
-              is_any_of(":"), token_compress_on);
-        if(remote_host_components.empty()) continue;
-        int port = mkt::default_port();
-        std::string host = remote_host_components[0];
-        if(remote_host_components.size()>=2)
-          port = lexical_cast<int>(remote_host_components[1]);
-
-        mkt::var_changed.disconnect(syncer(varname, remote_server));
-      }
+    //TODO: cleanup here
   }
-
-  void local_ip(const mkt::argument_vector& args)
-  {
-    using namespace std;
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    mkt::ret_val(mkt::get_local_ip_address());
-  }
-
-  void remote(const mkt::argument_vector& args)
-  {
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);    
-    mkt::argument_vector local_args = args;
-    local_args.erase(local_args.begin());
-    if(local_args.size() < 2)
-      throw mkt::command_error("Missing arguments");
-    
-    std::string host = local_args[0];
-    local_args.erase(local_args.begin());
-
-    int port = 31337;
-    //look for port keyword
-    //TODO: support ':' host/port separator
-    if(local_args[0] == "port")
-      {
-        local_args.erase(local_args.begin());
-        if(local_args.empty())
-          throw mkt::command_error("Missing arguments");
-        port = boost::lexical_cast<int>(local_args[0]);
-        local_args.erase(local_args.begin());
-      }
-
-    mkt::exec_remote(local_args, host, port);
-  }  
-
-  void server(const mkt::argument_vector& args)
-  {
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    
-    int port = 31337;
-    if(args.size()>=2)
-      port = boost::lexical_cast<int>(args[1]);
-    
-    mkt::run_xmlrpc_server(port);
-  }
-
-  class init_commands
-  {
-  public:
-    init_commands()
-    {
-      using namespace std;
-      using namespace mkt;
-
-      add_command("local_ip", local_ip, 
-                  "Prints the local ip address of the default interface.");
-      add_command("remote", remote, 
-                  "remote <host> [port <port>] <command> -\n"
-                  "Executes a command on the specified host.");
-      add_command("server", server, 
-                  "server <port>\nStart an xmlrpc server at the specified port.");
-      add_command("sync_var", sync_var, "sync_var <varname> <remote host comma separated list> -\n"
-                  "Keeps variables syncronized across hosts.");
-      add_command("unsync_var", unsync_var, "unsync_var <varname> <remote host comma separated list> -\n"
-                  "Disconnects variable syncronization across hosts.");
-    }
-  } init_commands_static_init;
 }

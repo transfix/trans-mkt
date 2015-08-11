@@ -20,6 +20,7 @@ namespace mkt
   typedef std::map<mkt_str, command>                     command_map;
 
   void init_commands();
+  void final_commands();
 
   void add_command(const mkt_str& name,
                    const command_func& func,
@@ -47,14 +48,14 @@ namespace mkt
   //functions.
   bool commands_at_exit();
 
-  extern map_change_signal   command_added;
-  extern map_change_signal   command_removed;
+  map_change_signal&   command_added();
+  map_change_signal&   command_removed();
   typedef boost::
     signals2::
     signal<void (const argument_vector&, const mkt_str&)> 
     command_exec_signal;
-  extern command_exec_signal command_pre_exec;
-  extern command_exec_signal command_post_exec;
+  command_exec_signal& command_pre_exec();
+  command_exec_signal& command_post_exec();
 }
 
 #endif

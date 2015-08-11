@@ -20,9 +20,7 @@ set(transmkt_VERSION ${transmkt_VERSION_MAJOR}.${transmkt_VERSION_MINOR})
 message(STATUS "trans-mkt version: ${transmkt_VERSION}")
 
 # include macros for setting up some library dependencies
-#include(SetupFFTW)
 include(SetupBoost)
-#include(SetupGSL)
 
 # 05/11/2012 - transfix
 # Possibly prevent crashing on OSX Lion
@@ -39,5 +37,15 @@ if(USING_STANDARD_INSTALL_LOCATION)
 else(USING_STANDARD_INSTALL_LOCATION)
   set(ADDED_PREFIX "trans-mkt")
 endif(USING_STANDARD_INSTALL_LOCATION)
+
+# newer versions of msvc enable c++11 by default. GCC & Clang need it specified.
+if(NOT MSVC)
+  # Initialize CXXFLAGS.
+  set(CMAKE_CXX_FLAGS                "-Wall -std=c++11")
+  set(CMAKE_CXX_FLAGS_DEBUG          "-O0 -g")
+  set(CMAKE_CXX_FLAGS_MINSIZEREL     "-Os -DNDEBUG")
+  set(CMAKE_CXX_FLAGS_RELEASE        "-O4 -DNDEBUG")
+  set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g")
+endif(NOT MSVC)
 
 add_subdirectory (src)
