@@ -115,10 +115,7 @@ namespace
   };
   vars_data                    *_vars_data = 0;
   bool                          _vars_atexit = false;
-  const mkt::mkt_str&           _vars_main_stackname("main");
-  const mkt::variable_map_stacks_key& _vars_variable_map_stacks_key_default(
-	     boost::make_tuple(mkt::thread_key(),
-			       mkt::vars_main_stackname()));
+  const mkt::mkt_str&           _vars_main_stackname("main_stack");
 
   void _vars_cleanup()
   {
@@ -349,13 +346,19 @@ namespace
 }
 
 //variable API implementation
-//TODO: need to verify var names such that they are strings like C identifiers
 namespace mkt
 {
   const mkt_str& vars_main_stackname() { return _vars_main_stackname; }
   const vms_key& vars_variable_map_stacks_key_default()
   {
-    return _vars_variable_map_stacks_key_default; 
+    // Default thread key string doesn't get initialized until after
+    // startup so lets just keep resetting the vms_key default.
+    static variable_map_stacks_key _vars_variable_map_stacks_key_default;
+    _vars_variable_map_stacks_key_default =
+      mkt::variable_map_stacks_key(
+        boost::make_tuple(mkt::thread_key(),
+			  mkt::vars_main_stackname()));
+    return _vars_variable_map_stacks_key_default;
   }
 
   MKT_DEF_SIGNAL(var_change_signal, var_changed);
@@ -378,7 +381,14 @@ namespace mkt
 
   void final_vars()
   {
-    //TODO: any cleanup...
+    remove_command("unset");
+    remove_command("stack_size");
+    remove_command("set");
+    remove_command("has_var");
+    remove_command("get");
+
+    delete _vars_data;
+    _vars_data = 0;
   }
 
   mkt_str var(const mkt_str& varname,

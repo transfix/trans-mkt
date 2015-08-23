@@ -26,6 +26,7 @@ namespace mkt
   typedef std::string                    mkt_str;
   typedef boost::shared_ptr<mkt_str>     mkt_str_ptr;
   typedef std::vector<mkt_str>           argument_vector;
+  typedef argument_vector                arg_vec; // shorthand
   typedef boost::signals2::signal<void (const mkt_str&)> map_change_signal;
   typedef boost::any                     any;
   typedef boost::shared_ptr<any>         any_ptr;

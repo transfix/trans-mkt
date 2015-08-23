@@ -28,13 +28,10 @@ namespace mkt
     _tf(new thread_feedback(BOOST_CURRENT_FUNCTION))
   {
     using namespace boost;
-    mkt::argument_vector args;
-      
-    mkt::var("sys.argc", argc);
-    for(int i = 0; i < argc; i++)
-      mkt::var(str(format("sys.argv_%1%") % i), argv[i]);
-    
     initialize();
+    mkt::var("sys_argc", argc);
+    for(int i = 0; i < argc; i++)
+      mkt::var(str(format("sys_argv_%1%") % i), argv[i]);
   }
 
   app::~app() { finalize(); }
@@ -48,20 +45,20 @@ namespace mkt
   {
     using namespace boost;
     argument_vector av;
-    int argc = mkt::var<int>("sys.argc");
+    int argc = mkt::var<int>("sys_argc");
     for(int i = 0; i < argc; i++)
-      av.push_back(mkt::var(str(format("sys.argv_%1%") % i)));
+      av.push_back(mkt::var(str(format("sys_argv_%1%") % i)));
     return av;
   }
 
   void app::initialize()
   {
     // initialize the whole app here...
-    mkt::init_vars();
     mkt::init_commands();
-    mkt::init_echo();
     mkt::init_threads();
     mkt::init_log();
+    mkt::init_vars();
+    mkt::init_echo();
 
 #ifdef MKT_USING_XMLRPC
     mkt::init_xmlrpc();
@@ -79,10 +76,11 @@ namespace mkt
     mkt::final_xmlrpc();
 #endif
 
-    mkt::final_log();
-    mkt::final_threads();
     mkt::final_echo();
-    mkt::final_commands();
     mkt::final_vars();
+    mkt::final_log();
+    _tf.reset(); // cleanup thread_feedback before we clean up threads module
+    mkt::final_threads();
+    mkt::final_commands();
   }
 }

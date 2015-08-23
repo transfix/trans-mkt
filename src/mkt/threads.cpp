@@ -35,7 +35,8 @@ namespace
   threads_data*                     _threads_data = 0;
   bool                              _threads_atexit = false;
   typedef mkt::mkt_str mkt_str;
-  const mkt_str                     _threads_default_keyname("default");
+  const mkt_str                     _threads_default_keyname("unknown");
+  mkt::thread_id                    _threads_main_thread_id = boost::this_thread::get_id();
 
   void _threads_cleanup()
   {
@@ -93,11 +94,11 @@ namespace
 
     thread_keys_ref().clear();
 
-    std::set<boost::thread::id> infoIds;
+    std::set<thread_id> infoIds;
     BOOST_FOREACH(thread_info_map::value_type val, thread_info_ref())
       infoIds.insert(val.first);
 
-    std::set<boost::thread::id> currentIds;
+    std::set<thread_id> currentIds;
     BOOST_FOREACH(thread_map::value_type val, threads_ref())
       {
         thread_ptr ptr = val.second;
@@ -108,19 +109,24 @@ namespace
             //set the thread info to a default state if not already set
             if(thread_info_ref()[ptr->get_id()].empty())
               thread_info_ref()[ptr->get_id()] = "running";
-          }
 
-        currentIds.insert(ptr->get_id());
+	    currentIds.insert(ptr->get_id());
+          }
       }
 
     //compute thread ids that need to be removed from the threadInfo map
-    std::set<boost::thread::id> infoIdsToRemove;
+    std::set<thread_id> infoIdsToRemove;
     set_difference(infoIds.begin(), infoIds.end(),
                    currentIds.begin(), currentIds.end(),
                    inserter(infoIdsToRemove,infoIdsToRemove.begin()));
 
-    BOOST_FOREACH(boost::thread::id tid, infoIdsToRemove)
+    BOOST_FOREACH(thread_id tid, infoIdsToRemove)
       thread_info_ref().erase(tid);
+
+    // set id -> key mapping and thread info for main_thread
+    thread_keys_ref()[_threads_main_thread_id] = "main_thread";
+    if(thread_info_ref()[_threads_main_thread_id].empty())
+      thread_info_ref()[_threads_main_thread_id] = "running";
   }
 }
 
@@ -278,8 +284,6 @@ namespace mkt
 
   void init_threads()
   {
-    using namespace mkt;
-    
     add_command("async", ::async,
 		"Executes a command in another thread and"
 		" returns immediately. If 'wait' is before\n"
@@ -292,11 +296,27 @@ namespace mkt
     add_command("interrupt", ::interrupt, "Interrupts a running thread.");
     add_command("threads", ::list_threads, "Lists running threads by name.");
     add_command("sleep", sleep_cmd, "sleep <milliseconds>\nSleep for the time specified.");
+
+    // add thread_map entry for the main thread
+    threads("main_thread", thread_ptr());
   }
 
   void final_threads()
   {
-    //TODO: unregister commands and other cleanup...
+    remove_command("async");
+    remove_command("async_file");
+    remove_command("parallel");
+    remove_command("interrupt");
+    remove_command("threads");
+    remove_command("sleep");
+    
+    // remove threads, interrupting them
+    arg_vec t_keys = thread_keys();
+    BOOST_FOREACH(const mkt_str& key, t_keys)
+      remove_thread(key);
+
+    // remove entry for main_thread
+    remove_thread("main_thread");
   }
 
   const mkt_str& threads_default_keyname()
@@ -332,15 +352,12 @@ namespace mkt
   {
     boost::this_thread::interruption_point();
 
-    if(has_thread(key))
+    if(has_thread(key) && threads(key))
       threads(key)->interrupt();
 
     {
       unique_lock lock(threads_mutex_ref());
-      if(!val)
-        threads_ref().erase(key);
-      else
-        threads_ref()[key] = val;
+      threads_ref()[key] = val;
       update_thread_keys();
     }
 
@@ -378,7 +395,7 @@ namespace mkt
     boost::this_thread::interruption_point();
     unique_lock lock(threads_mutex_ref());
 
-    boost::thread::id tid;
+    thread_id tid;
     if(key.empty())
       tid = boost::this_thread::get_id();
     else if(threads_ref().find(key)!=threads_ref().end() &&
@@ -408,7 +425,7 @@ namespace mkt
     bool changed = false;
     {
       unique_lock lock(threads_mutex_ref());
-      boost::thread::id tid;
+      thread_id tid;
 
       if(key.empty())
         {
@@ -436,7 +453,7 @@ namespace mkt
     {
       unique_lock lock(threads_mutex_ref());
 
-      boost::thread::id tid;
+      thread_id tid;
       if(key.empty())
         tid = boost::this_thread::get_id();
       else if(threads_ref().find(key)!=threads_ref().end() &&
@@ -462,9 +479,32 @@ namespace mkt
     }
   }
 
+  arg_vec thread_keys()
+  {
+    boost::this_thread::interruption_point();
+    arg_vec ret_val;
+    {
+      unique_lock lock(threads_mutex_ref());
+      BOOST_FOREACH(thread_map::value_type& t, threads_ref())
+	ret_val.push_back(t.first);
+    }
+    return ret_val;
+  }
+
   void remove_thread(const mkt_str& key)
   {
-    threads(key,thread_ptr());
+    boost::this_thread::interruption_point();
+
+    if(has_thread(key) && threads(key))
+      threads(key)->interrupt();
+
+    {
+      unique_lock lock(threads_mutex_ref());
+      threads_ref().erase(key);
+      update_thread_keys();
+    }
+
+    trigger_threads_changed(key);
   }
 
   mkt_str unique_thread_key(const mkt_str& hint)
@@ -485,7 +525,7 @@ namespace mkt
     {
       unique_lock lock(threads_mutex_ref());
 
-      boost::thread::id tid;
+      thread_id tid;
       if(key.empty())
         tid = boost::this_thread::get_id();
       else if(threads_ref().find(key)!=threads_ref().end() &&
@@ -505,7 +545,7 @@ namespace mkt
     {
       unique_lock lock(threads_mutex_ref());
       
-      boost::thread::id tid;
+      thread_id tid;
       if(key.empty())
         tid = boost::this_thread::get_id();
       else if(threads_ref().find(key)!=threads_ref().end() &&

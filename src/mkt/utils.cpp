@@ -6,6 +6,7 @@
 #include <mkt/log.h>
 
 #include <boost/regex.hpp>
+#include <boost/algorithm/string/trim.hpp>
 
 #include <iostream>
 
@@ -54,9 +55,15 @@ namespace mkt
   ptime str_to_ptime(const mkt_str& s)
   {
     ptime pt = bt::ptime();
+    
+    mkt_str s_local(s);
+    boost::algorithm::trim(s_local);
+    if(s_local == "now") // convenient string
+      return bt::microsec_clock::universal_time();
+
     for(size_t i=0; i<formats_n; ++i)
     {
-        std::istringstream is(s);
+        std::istringstream is(s_local);
         is.imbue(formats[i]);
         is >> pt;
         if(pt != bt::ptime()) break;

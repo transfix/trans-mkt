@@ -126,7 +126,7 @@ namespace
 
 	//output the contents of the retval to the output stream
 	mkt::mkt_str rv = mkt::var("_");
-	mkt::out().stream() << "_ <- \"" << rv << "\"" << endl;
+	mkt_echo << "_ <- {" << rv << "}" << endl;
 	mkt::ret_val(mkt::mkt_str());
 
 	cmd_restore_prompt();
@@ -304,7 +304,17 @@ namespace mkt
 
   void final_commands()
   {
-    //TODO: any cleanup (like removing commands)
+    remove_command("version");
+    remove_command("serial");
+    remove_command("repeat");
+    remove_command("help");
+    remove_command("file");
+#ifdef MKT_INTERACTIVE
+    remove_command("cmd");
+#endif
+
+    delete _commands_data;
+    _commands_data = 0;
   }
 
   void add_command(const mkt_str& name,

@@ -39,15 +39,18 @@ namespace mkt
   class out
   {
   public:
-    out(int64 echo_id = -1) : 
-    _out(boost::iostreams::back_inserter(_result)), _id(echo_id) {}
-    ~out() { _out.flush(); if(_id >= 0) echo(_id, _result); else echo(_result); }
-    boost::iostreams::filtering_ostream& stream() { return _out; }
+    typedef boost::iostreams::filtering_ostream f_os;
+    out(int64 echo_id = -1);
+    ~out();
+    f_os& stream() { return _out; }
   private:
     std::string _result;
-    boost::iostreams::filtering_ostream _out;
+    f_os _out;
     int64 _id;
   };
+
+#define mkt_echo mkt::out().stream()
+#define mkt_echo_(id) mkt::out(id).stream()
 
   void init_echo(); //set up standard echo functions
   void final_echo();

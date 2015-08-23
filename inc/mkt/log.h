@@ -17,7 +17,8 @@ namespace mkt
   typedef boost::tuple<
     mkt_str,            // message
     any,                // data
-    thread_id           // thread id where log originated
+    thread_id,          // thread id where log originated
+    mkt_str             // log queue where this entry came from (TODO: don't store strings)
     > log_entry;
 
   typedef boost::shared_ptr<log_entry>         log_entry_ptr;

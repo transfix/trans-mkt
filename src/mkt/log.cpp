@@ -3,6 +3,8 @@
 #include <mkt/exceptions.h>
 #include <mkt/threads.h>
 #include <mkt/vars.h>
+#include <mkt/modules.h>
+#include <mkt/echo.h>
 
 #include <boost/current_function.hpp>
 #include <boost/format.hpp>
@@ -87,15 +89,15 @@ namespace
     if(local_args.size()>2)
       trim(local_args[2]);
 
-    ptime begin = local_args.size()>0 ?
-      str_to_ptime(local_args[0]) :
-      ptime(gregorian::date(1970, 1, 1));
-    ptime end = local_args.size()>1 ?
-      str_to_ptime(local_args[1]) :
-      posix_time::microsec_clock::universal_time();
-    mkt_str queue = local_args.size()>2 ? 
-      local_args[2] : 
+    mkt_str queue = local_args.size()>0 ? 
+      local_args[0] : 
       ".*";
+    ptime begin = local_args.size()>1 ?
+      str_to_ptime(local_args[1]) :
+      ptime(gregorian::date(1970, 1, 1));
+    ptime end = local_args.size()>2 ?
+      str_to_ptime(local_args[2]) :
+      posix_time::microsec_clock::universal_time();
 
     stringstream ss;
     log_entries_ptr le_p = get_logs(begin, end, queue);
@@ -105,10 +107,10 @@ namespace
 	if(!cur.second) continue;
 	log_entry& le = *cur.second;
 	ss << str(format("\"%1%\", \"%2%\", \"%3%\"")
+		  % le.get<3>()
 		  % ptime_to_str(cur.first)
-		  % mkt::thread_key(le.get<2>())
-		  % le.get<0>())
-	   << endl; 
+		  % mkt::thread_key(le.get<2>()))
+	   << endl;
       }
     ret_val(ss.str());
   }
@@ -149,13 +151,23 @@ namespace mkt
   void var_changed_slot(const mkt_str& varname, const var_context& context)
   {
     using namespace boost;
-    log("vars",str(format("variable changed: %1% %2% %3% %4%")
-		   % varname 
+    log("vars",str(format("variable %1% changed: %2% (context: %3% %4% %5%)")
+		   % varname
+		   % var(varname)
 		   % context.stack_depth() 
 		   % context.key().get<0>()
 		   % context.key().get<1>()));
   }
 
+  void echo_slot(uint64 echo_id, const mkt_str& msg)
+  {
+    using namespace boost;
+    log("echo",str(format("%1%: %2%")
+		   % echo_id
+		   % msg));
+  }
+
+  template<class Key_Type>
   class map_change_log_slot
   {
   public:
@@ -163,17 +175,34 @@ namespace mkt
 			const mkt_str& slot_str = mkt_str()) : 
       _queue_str(queue_str),
       _str(slot_str) {}
-    void operator()(const mkt_str& changed_key)
+    void operator()(const Key_Type& changed_key)
     {
       using namespace boost;
       log(_queue_str, str(format("%1% %2%")
 			  % _str
 			  % changed_key));
     }
+    bool operator==(const map_change_log_slot& rhs) const
+    {
+      if(_queue_str == rhs._queue_str && _str == rhs._str) return true;
+      return false;
+    }
   private:
     mkt_str _queue_str;
     mkt_str _str;
   };
+  typedef map_change_log_slot<mkt_str> mcls_str;
+  typedef map_change_log_slot<int64> mcls_int64;
+
+#define MKT_MCLS_CONNECT(module, slot_name, key_type)			      \
+  slot_name().connect(map_change_log_slot<key_type>(#module, #slot_name))
+#define MKT_MCLS_DISCONNECT(module, slot_name, key_type)		      \
+  slot_name().disconnect(map_change_log_slot<key_type>(#module, #slot_name))
+
+#define MKT_MCLS_STR_CONNECT(module, slot_name) 	\
+  MKT_MCLS_CONNECT(module, slot_name, mkt_str)
+#define MKT_MCLS_STR_DISCONNECT(module, slot_name)	\
+  MKT_MCLS_DISCONNECT(module, slot_name, mkt_str)
 
   void init_log()
   {
@@ -181,11 +210,12 @@ namespace mkt
     using namespace mkt;
     
     add_command("get_logs", get_logs_cmd, 
-		"get_logs [begin time] [end time] [queue regex]\n"
-		"Returns all logs between begin time and end time. "
-		"If begin time isn't specified, the posix time epoch is assumed. "
-		"If end time isn't specified, 'now' is assumed. [queue regex] is a "
-		"regular expression used to select which log queue to read from. "
+		"get_logs [queue regex] [begin time] [end time]\n"
+		"Returns all logs between begin time and end time.\n"
+		"[queue regex] is a regular expression used to select which log "
+		"queue to read from.\n"
+		"If begin time isn't specified, the posix time epoch is assumed.\n"
+		"If end time isn't specified, 'now' is assumed.\n"
 		"Default is '.*'");
     add_command("get_log_queues", get_log_queues_cmd,
 		"Returns a list of log queues");
@@ -194,15 +224,33 @@ namespace mkt
 		"Posts a message to the specified message queue.");
 
     var_changed().connect(var_changed_slot);
-    command_added().
-      connect(map_change_log_slot("commands","command_added"));
-    command_removed().
-      connect(map_change_log_slot("commands","command_removed"));
+    MKT_MCLS_STR_CONNECT(commands, command_added);
+    MKT_MCLS_STR_CONNECT(commands, command_removed);
+    MKT_MCLS_STR_CONNECT(modules, modules_changed);
+    MKT_MCLS_STR_CONNECT(modules, module_pre_init);
+    MKT_MCLS_STR_CONNECT(modules, module_post_init);
+    MKT_MCLS_STR_CONNECT(modules, module_pre_final);
+    MKT_MCLS_STR_CONNECT(modules, module_post_final);
+    MKT_MCLS_CONNECT(echo, echo_function_registered, int64);
+    echo_post_exec().connect(echo_slot);
+    //TODO: thread map changed
   }
 
   void final_log()
   {
+    remove_command("get_logs");
+    remove_command("get_log_queues");
+    remove_command("log");
 
+    var_changed().disconnect(var_changed_slot);
+    MKT_MCLS_STR_DISCONNECT(commands, command_added);
+    MKT_MCLS_STR_DISCONNECT(commands, command_removed);
+    MKT_MCLS_STR_DISCONNECT(modules, modules_changed);
+    MKT_MCLS_STR_DISCONNECT(modules, module_pre_init);
+    MKT_MCLS_STR_DISCONNECT(modules, module_post_init);
+    MKT_MCLS_STR_DISCONNECT(modules, module_pre_final);
+    MKT_MCLS_STR_DISCONNECT(modules, module_post_final);
+    echo_post_exec().disconnect(echo_slot);
   }
 
   void log(const mkt_str& queue, const mkt_str& message, const any& data)
@@ -219,7 +267,8 @@ namespace mkt
 
       ptime cur_time = boost::posix_time::microsec_clock::universal_time();
       log_entry_ptr le_p(new log_entry(message, data,
-				       boost::this_thread::get_id()));
+				       boost::this_thread::get_id(),
+				       queue));
       le.insert(log_entries::value_type(cur_time, le_p));
     }
   }

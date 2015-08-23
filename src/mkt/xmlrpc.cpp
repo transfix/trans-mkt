@@ -391,6 +391,10 @@ namespace mkt
 
   void final_xmlrpc()
   {
-    //TODO: cleanup here
+    remove_command("local_ip");
+    remove_command("remote");
+    remove_command("server");
+    remove_command("sync_var");
+    remove_command("unsync_var");
   }
 }
