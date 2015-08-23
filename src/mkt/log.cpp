@@ -9,6 +9,7 @@
 #include <boost/current_function.hpp>
 #include <boost/format.hpp>
 #include <boost/algorithm/string/trim.hpp>
+#include <boost/bind.hpp>
 
 #include <sstream>
 
@@ -23,7 +24,11 @@ namespace
 {
   struct log_data
   {
+    log_data() : _next_serial(0) {}
+
     mkt::log_entry_queues      _log_entry_queues;
+    mkt::log_entry_serial_map  _log_entry_serial_map;
+    mkt::uint64                _next_serial;
     
     //Big-lock on logging
     //TODO: break it down when it matters
@@ -63,9 +68,32 @@ namespace
     return _get_log_data()->_log_entry_queues;
   }
 
+  mkt::log_entry_serial_map& log_entry_serial_map_ref()
+  {
+    return _get_log_data()->_log_entry_serial_map;
+  }
+
   mkt::mutex& log_mutex_ref()
   {
     return _get_log_data()->_log_mutex;
+  }
+
+  mkt::uint64 _get_log_next_serial()
+  {
+    return _get_log_data()->_next_serial;
+  }
+
+  void _log_inc_serial()
+  {
+    _get_log_data()->_next_serial++;
+  }
+
+  // return current next log serial number and increment
+  mkt::uint64 _next_serial()
+  {
+    mkt::uint64 ret = _get_log_next_serial();
+    _log_inc_serial();
+    return ret;
   }
 }
 
@@ -100,16 +128,17 @@ namespace
       posix_time::microsec_clock::universal_time();
 
     stringstream ss;
-    log_entries_ptr le_p = get_logs(begin, end, queue);
-    if(!le_p) return;
+    log_entries_ptr le_p = get_logs(queue, begin, end);
+    if(!le_p) throw log_error("Missing log entries!");
     BOOST_FOREACH(log_entries::value_type cur, *le_p)
       {
 	if(!cur.second) continue;
 	log_entry& le = *cur.second;
-	ss << str(format("\"%1%\", \"%2%\", \"%3%\"")
+	ss << str(format("{%1%}, {%2%}, {%3%}, {%4%}")
 		  % le.get<3>()
 		  % ptime_to_str(cur.first)
-		  % mkt::thread_key(le.get<2>()))
+		  % mkt::thread_key(le.get<2>())
+		  % le.get<4>())
 	   << endl;
       }
     ret_val(ss.str());
@@ -143,6 +172,31 @@ namespace
     mkt_str message = join(local_args);
     log(queue, message);
   }
+
+  void get_log_cmd(const mkt::argument_vector& args)
+  {
+    using namespace std;
+    using namespace boost;
+    using namespace mkt;
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+
+    if(args.size()<2) throw mkt::log_error("Missing arguments.");
+    argument_vector local_args = args;
+    local_args.erase(local_args.begin()); //remove the command string
+    trim(local_args[0]);
+    uint64 serial_no = string_cast<uint64>(local_args[0]);
+    log_entry_ptr le_p = get_log(serial_no);
+    ret_val(le_p ?
+	    mkt_str(str(format("%1%: {%2%}, "
+			       "%3%: {%4%}, "
+			       "%5%: {%6%}, "
+			       "%7%: {%8%}")
+			% "queue" % le_p->get<3>()
+			% "thread_key" % thread_key(le_p->get<2>())
+			% "serial" % le_p->get<4>()
+			% "msg" % le_p->get<0>())) :
+	    mkt_str());
+  }
 }
 
 // Log API implementation
@@ -151,7 +205,7 @@ namespace mkt
   void var_changed_slot(const mkt_str& varname, const var_context& context)
   {
     using namespace boost;
-    log("vars",str(format("variable %1% changed: %2% (context: %3% %4% %5%)")
+    log("vars",str(format("%1%: {%2%}, {context: {%3%, %4%, %5%}}")
 		   % varname
 		   % var(varname)
 		   % context.stack_depth() 
@@ -165,6 +219,18 @@ namespace mkt
     log("echo",str(format("%1%: %2%")
 		   % echo_id
 		   % msg));
+  }
+
+  void command_slot(const mkt_str& queue,
+		    const argument_vector& cmd,
+		    const thread_id& tid,
+		    const mkt_str& stackname)
+  {
+    using namespace boost;
+    log(queue,str(format("%1%, %2%: %3%")
+		  % thread_key(tid)
+		  % stackname
+		  % join(cmd)));
   }
 
   template<class Key_Type>
@@ -217,6 +283,9 @@ namespace mkt
 		"If begin time isn't specified, the posix time epoch is assumed.\n"
 		"If end time isn't specified, 'now' is assumed.\n"
 		"Default is '.*'");
+    add_command("get_log", get_log_cmd,
+		"get_log [serial_no]\n"
+		"Returns the log entry with the specified serial number.");
     add_command("get_log_queues", get_log_queues_cmd,
 		"Returns a list of log queues");
     add_command("log", log_cmd, 
@@ -233,6 +302,10 @@ namespace mkt
     MKT_MCLS_STR_CONNECT(modules, module_post_final);
     MKT_MCLS_CONNECT(echo, echo_function_registered, int64);
     echo_post_exec().connect(echo_slot);
+    command_pre_exec().connect(boost::bind(command_slot,"command_pre_exec",
+					   _1, _2, _3));
+    command_post_exec().connect(boost::bind(command_slot,"command_post_exec",
+					    _1, _2, _3));
     //TODO: thread map changed
   }
 
@@ -251,6 +324,10 @@ namespace mkt
     MKT_MCLS_STR_DISCONNECT(modules, module_pre_final);
     MKT_MCLS_STR_DISCONNECT(modules, module_post_final);
     echo_post_exec().disconnect(echo_slot);
+    command_pre_exec().disconnect(boost::bind(command_slot,"command_pre_exec",
+					      _1, _2, _3));
+    command_post_exec().disconnect(boost::bind(command_slot,"command_post_exec",
+					       _1, _2, _3));
   }
 
   void log(const mkt_str& queue, const mkt_str& message, const any& data)
@@ -268,12 +345,16 @@ namespace mkt
       ptime cur_time = boost::posix_time::microsec_clock::universal_time();
       log_entry_ptr le_p(new log_entry(message, data,
 				       boost::this_thread::get_id(),
-				       queue));
+				       queue,
+				       _next_serial()));
       le.insert(log_entries::value_type(cur_time, le_p));
+      log_entry_serial_map_ref()[le_p->get<4>()] = le_p;
     }
   }
 
-  log_entries_ptr get_logs(const ptime& begin, const ptime& end, const mkt_str& queue_regex)
+  log_entries_ptr get_logs(const mkt_str& queue_regex,
+			   const ptime& begin, 
+			   const ptime& end)
   {
     thread_info ti(BOOST_CURRENT_FUNCTION);
 
@@ -311,6 +392,28 @@ namespace mkt
 	}
     }
     return queues;
+  }
+
+  log_entry_ptr get_log(uint64 serial_no)
+  {
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    log_entry_ptr out_val;
+
+    // Avoid creating new entries in the map by
+    // first checking if an entry with the requested
+    // serial_no exists.
+    {
+      shared_lock lock(log_mutex_ref());
+      if(log_entry_serial_map_ref().find(serial_no) ==
+	 log_entry_serial_map_ref().end())
+	return out_val;
+    }
+
+    {
+      unique_lock lock(log_mutex_ref());
+      out_val = log_entry_serial_map_ref()[serial_no];
+    }
+    return out_val;
   }
   
   bool log_at_exit() { return _log_atexit; }

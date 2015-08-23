@@ -2,8 +2,10 @@
 #include <mkt/app.h>
 #include <mkt/threads.h>
 #include <mkt/vars.h>
-#include <mkt/echo.h>
+//#include <mkt/echo.h>
 #include <mkt/utils.h>
+#include <mkt/log.h>
+#include <mkt/exceptions.h>
 
 #ifdef MKT_INTERACTIVE
 #ifdef __WINDOWS__
@@ -98,6 +100,7 @@ namespace
   {
 #ifdef MKT_INTERACTIVE
     using namespace std;
+    using namespace boost;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
 
     cmd_restore_prompt();
@@ -117,16 +120,12 @@ namespace
           }
         catch(mkt::exception& e)
           {
-            if(!e.what_str().empty()) 
-              mkt::out().stream() 
-                << "Error: " 
-                << e.what_str() 
-                << endl;
+	    mkt::log("exceptions", e.what_str());
           }
 
-	//output the contents of the retval to the output stream
+	//output the contents of the retval to stdout
 	mkt::mkt_str rv = mkt::var("_");
-	mkt_echo << "_ <- {" << rv << "}" << endl;
+	std::cout << "_ <- {" << rv << "}" << endl;
 	mkt::ret_val(mkt::mkt_str());
 
 	cmd_restore_prompt();
@@ -390,9 +389,13 @@ namespace mkt
     //finally call it
     push_vars();
     var("_", ""); //reset the return val for this stack frame
-    command_pre_exec()(local_args, vars_main_stackname());
+    command_pre_exec()(local_args,
+		       boost::this_thread::get_id(),
+		       vars_main_stackname());
     cmd.get<0>()(local_args);
-    command_post_exec()(local_args, vars_main_stackname());
+    command_post_exec()(local_args,
+			boost::this_thread::get_id(),
+			vars_main_stackname());
     pop_vars();
   }
 

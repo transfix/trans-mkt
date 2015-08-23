@@ -5,6 +5,7 @@
 #include <mkt/exceptions.h>
 #include <mkt/vars.h>
 #include <mkt/types.h>
+#include <mkt/threads.h>
 
 #include <boost/function.hpp>
 #include <boost/tuple/tuple.hpp>
@@ -52,7 +53,7 @@ namespace mkt
   map_change_signal&   command_removed();
   typedef boost::
     signals2::
-    signal<void (const argument_vector&, const mkt_str&)> 
+    signal<void (const argument_vector&, const thread_id&, const mkt_str&)> 
     command_exec_signal;
   command_exec_signal& command_pre_exec();
   command_exec_signal& command_post_exec();
