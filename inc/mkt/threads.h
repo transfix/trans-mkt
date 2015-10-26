@@ -20,6 +20,8 @@ namespace mkt
   typedef std::map<thread_id, mkt_str>           thread_info_map;
 
   map_change_signal& threads_changed();
+  map_change_signal& thread_progress_changed();
+  map_change_signal& thread_info_changed();
 
   void init_threads();
   void final_threads();
@@ -36,7 +38,7 @@ namespace mkt
   mkt_str thread_key(thread_id tid = boost::this_thread::get_id());
   arg_vec thread_keys();
   const mkt_str& threads_default_keyname();
-  void remove_thread(const mkt_str& key);
+  void remove_thread(const mkt_str& key, bool do_interrupt = true);
   mkt_str unique_thread_key(const mkt_str& hint = mkt_str());
 
   //set a string to associate with the thread to state it's current activity

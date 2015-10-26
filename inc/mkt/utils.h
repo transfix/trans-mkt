@@ -33,15 +33,17 @@ namespace mkt
   bool valid_identifier(const mkt_str& str);
 
   template<class Exception = system_error>
-    void check_identifier(const mkt_str& str)
-    {
-      if(!valid_identifier(str))
-        throw Exception("Invalid identifier: " + str);
-    }
+  void check_identifier(const mkt_str& str)
+  {
+    if(!valid_identifier(str))
+      throw Exception("Invalid identifier: " + str);
+  }
 
   //TODO: these should be symmetrical...
   mkt_str ptime_to_str(const ptime& pt);
   ptime str_to_ptime(const mkt_str& s);
+  
+  inline ptime now() { return boost::posix_time::microsec_clock::universal_time(); }
 
   //Use this to determine if the program is exiting
   bool at_exit();

@@ -9,6 +9,7 @@
 
 #include <boost/tuple/tuple.hpp>
 #include <boost/tuple/tuple_comparison.hpp>
+#include <boost/format.hpp>
 
 #include <map>
 
@@ -17,7 +18,71 @@ namespace mkt
   /*
    * Variable API
    */
-  typedef std::map<mkt_str, mkt_str>                variable_map;
+  MKT_DEF_EXCEPTION(vars_error);
+
+  struct variable_value : boost::tuple
+  <
+    any_ptr,  // value data
+    mkt_str,  // value type identifier
+    ptime,    // modification time
+    ptime     // access time
+  >
+  {
+    inline variable_value(const any_ptr& p = any_ptr(), 
+			  const mkt_str& t = mkt_str(),
+			  const ptime& m = now(),
+			  const ptime& a = now())
+      : boost::tuple<any_ptr, mkt_str, ptime, ptime>(p,t,m,a) {}
+    inline variable_value(const variable_value& vv)
+      : boost::tuple<any_ptr, mkt_str, ptime, ptime>(vv) {}
+    
+    template<class T>
+    inline T data()
+    {
+      T val;
+      any_ptr& d_ptr = get<0>();
+      //default to empty string for now
+      if(!d_ptr) d_ptr.reset(new any(mkt_str()));
+      try
+	{
+	  val = boost::any_cast<T>(*d_ptr);
+	  ptime& access_time = get<3>();
+	  access_time = now();
+	}
+      catch(boost::bad_any_cast&)
+	{
+	  throw mkt::vars_error(
+	    boost::str(boost::format("Error casting variable data to %1%.")
+		       % typeid(T).name()));
+	}
+      return val;
+    }
+
+    inline mkt_str data() { return data<mkt_str>(); }
+
+    template<class T>
+    inline void data(const T& in)
+    {
+      any_ptr& d_ptr = get<0>();
+      if(!d_ptr) d_ptr.reset(new any());
+      *d_ptr = in;
+
+      mkt_str& val_type = get<1>();
+      val_type = mkt_str(typeid(T).name());
+
+      ptime& mod_time = get<2>();
+      mod_time = now();
+
+      ptime& access_time = get<3>();
+      access_time = now();
+    }
+
+    const mkt_str& type() const { return get<1>(); }
+    const ptime& mod_time() const { return get<2>(); }
+    const ptime& access_time() const { return get<3>(); }
+  };
+
+  typedef std::map<mkt_str, variable_value>         variable_map;
   typedef std::vector<variable_map>                 variable_map_stack;
   typedef boost::tuple<
     mkt_str,  //thread key 
@@ -34,38 +99,18 @@ namespace mkt
   void init_vars();
   void final_vars();
 
-  class var_context
+  // Default var_context() is highest point on this thread's main stack
+  struct var_context : boost::tuple<size_t, vms_key>
   {
-  public:
-    var_context(size_t stack_depth = 0, 
-		const vms_key& key = vms_key_def())
-      : _stack_depth(stack_depth), _key(key) {}
-
-    var_context(const var_context& c)
-      : _stack_depth(c._stack_depth), _key(c._key) {}
-  
-    size_t stack_depth() const { return _stack_depth; }
-    var_context& stack_depth(size_t d) { _stack_depth = d; return *this; }
-
-    const vms_key& key() const { return _key; }
-    var_context& key(const vms_key& k) { _key = k; return *this; }
-
-    bool operator==(const var_context& rhs) const
-    {
-      if(this == &rhs) return true;
-      return 
-	_stack_depth == rhs._stack_depth &&
-	_key == rhs._key;
-    }
-
-    bool operator!=(const var_context& rhs) const
-    {
-      return !(*this == rhs);
-    }
-
-  private:
-    size_t _stack_depth;
-    vms_key _key;
+    inline var_context(size_t stack_depth = 0, 
+		       const vms_key& key = vms_key_def())
+      : boost::tuple<size_t, vms_key>(stack_depth, key) {}
+    inline var_context(const var_context& c)
+      : boost::tuple<size_t, vms_key>(c) {}
+    inline size_t stack_depth() const { return get<0>(); }
+    inline var_context& stack_depth(size_t d) { get<0>() = d; return *this; }
+    inline const vms_key& key() const { return get<1>(); }
+    inline var_context& key(const vms_key& k) { get<1>() = k; return *this; }    
   };
 
   mkt_str var(const mkt_str& varname, 
@@ -85,6 +130,10 @@ namespace mkt
   void push_vars(const vms_key& key = vms_key_def());
   void pop_vars(const vms_key& key = vms_key_def());
   size_t vars_stack_size(const vms_key& key = vms_key_def());
+  void vars_copy(const var_context& to_context,
+		 const var_context& from_context = var_context(),
+		 bool no_locals = true,
+		 bool only_if_newer = true);
 
   typedef boost::
     signals2::
@@ -106,8 +155,9 @@ namespace mkt
         }
       catch(mkt::system_error&)
         {
-          throw mkt::system_error(str(format("Invalid value type for variable %1%: %2%")
-                                             % varname % str_val));
+          throw mkt::system_error(
+	    str(format("Invalid value type for variable %1%: %2%")
+		% varname % str_val));
         }
       return val;
     }
@@ -123,8 +173,9 @@ namespace mkt
         }
       catch(boost::bad_lexical_cast&)
         {
-          throw mkt::system_error(boost::str(boost::format("Invalid value type for variable %1%: %2%")
-                                             % varname % val));
+          throw mkt::system_error(
+	    boost::str(boost::format("Invalid value type for variable %1%: %2%")
+		       % varname % val));
         }
       var(varname, str_val);
     }

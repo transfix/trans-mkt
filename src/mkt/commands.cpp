@@ -121,6 +121,7 @@ namespace
         catch(mkt::exception& e)
           {
 	    mkt::log("exceptions", e.what_str());
+	    mkt::var("_", e.what_str());
           }
 
 	//output the contents of the retval to stdout
@@ -386,7 +387,13 @@ namespace mkt
       cmd = cmds()[cmd_str];
     }
 
-    //finally call it
+    // Finally call it, creating a thread local variable map context for it.
+    // After the command function is called, copy non-local variable changes
+    // from its variable scope one up the stack so changes to global variables
+    // can be propagated upward and visible to calling commands. Local variables
+    // to a command execution are those with names that begin with '_'. 
+    // '_' itself is a special variable reserved for use as a command return value.
+    // It is always propagated back up along with the non-local variables.
     push_vars();
     var("_", ""); //reset the return val for this stack frame
     command_pre_exec()(local_args,
@@ -396,6 +403,7 @@ namespace mkt
     command_post_exec()(local_args,
 			boost::this_thread::get_id(),
 			vars_main_stackname());
+    vars_copy(var_context(1));
     pop_vars();
   }
 

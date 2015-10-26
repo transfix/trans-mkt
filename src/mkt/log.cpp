@@ -135,10 +135,10 @@ namespace
 	if(!cur.second) continue;
 	log_entry& le = *cur.second;
 	ss << str(format("{%1%}, {%2%}, {%3%}, {%4%}")
-		  % le.get<3>()
-		  % ptime_to_str(cur.first)
-		  % mkt::thread_key(le.get<2>())
-		  % le.get<4>())
+		  % le.get<3>()                  // log queue
+		  % ptime_to_str(cur.first)      // datetime
+		  % mkt::thread_key(le.get<2>()) // thread of origination
+		  % le.get<4>())                 // serial number
 	   << endl;
       }
     ret_val(ss.str());
@@ -202,10 +202,12 @@ namespace
 // Log API implementation
 namespace mkt
 {
+  MKT_DEF_MAP_CHANGE_SIGNAL(log_queue_changed);
+
   void var_changed_slot(const mkt_str& varname, const var_context& context)
   {
     using namespace boost;
-    log("vars",str(format("%1%: {%2%}, {context: {%3%, %4%, %5%}}")
+    log("vars",str(format("%1%: {%2%}, {context: %3%, %4%, %5%}")
 		   % varname
 		   % var(varname)
 		   % context.stack_depth() 
@@ -216,7 +218,7 @@ namespace mkt
   void echo_slot(uint64 echo_id, const mkt_str& msg)
   {
     using namespace boost;
-    log("echo",str(format("%1%: %2%")
+    log("echo",str(format("{%1%}: {%2%}")
 		   % echo_id
 		   % msg));
   }
@@ -227,7 +229,7 @@ namespace mkt
 		    const mkt_str& stackname)
   {
     using namespace boost;
-    log(queue,str(format("%1%, %2%: %3%")
+    log(queue,str(format("%1%, %2%: {%3%}")
 		  % thread_key(tid)
 		  % stackname
 		  % join(cmd)));
@@ -286,7 +288,7 @@ namespace mkt
     add_command("get_log", get_log_cmd,
 		"get_log [serial_no]\n"
 		"Returns the log entry with the specified serial number.");
-    add_command("get_log_queues", get_log_queues_cmd,
+    add_command("log_queues", get_log_queues_cmd,
 		"Returns a list of log queues");
     add_command("log", log_cmd, 
 		"log <queue name> <message>\n"
@@ -301,12 +303,16 @@ namespace mkt
     MKT_MCLS_STR_CONNECT(modules, module_pre_final);
     MKT_MCLS_STR_CONNECT(modules, module_post_final);
     MKT_MCLS_CONNECT(echo, echo_function_registered, int64);
-    echo_post_exec().connect(echo_slot);
     command_pre_exec().connect(boost::bind(command_slot,"command_pre_exec",
 					   _1, _2, _3));
     command_post_exec().connect(boost::bind(command_slot,"command_post_exec",
 					    _1, _2, _3));
-    //TODO: thread map changed
+    MKT_MCLS_STR_CONNECT(threads, threads_changed);
+
+    //TODO: the following are too verbose...
+    //echo_post_exec().connect(echo_slot);
+    //    MKT_MCLS_STR_CONNECT(threads, thread_progress_changed);
+    //MKT_MCLS_STR_CONNECT(threads, thread_info_changed);
   }
 
   void final_log()
@@ -323,11 +329,15 @@ namespace mkt
     MKT_MCLS_STR_DISCONNECT(modules, module_post_init);
     MKT_MCLS_STR_DISCONNECT(modules, module_pre_final);
     MKT_MCLS_STR_DISCONNECT(modules, module_post_final);
-    echo_post_exec().disconnect(echo_slot);
+    MKT_MCLS_DISCONNECT(echo, echo_function_registered, int64);
+    //echo_post_exec().disconnect(echo_slot);
     command_pre_exec().disconnect(boost::bind(command_slot,"command_pre_exec",
 					      _1, _2, _3));
     command_post_exec().disconnect(boost::bind(command_slot,"command_post_exec",
 					       _1, _2, _3));
+    MKT_MCLS_STR_DISCONNECT(threads, threads_changed);
+    //    MKT_MCLS_STR_DISCONNECT(threads, thread_progress_changed);
+    //MKT_MCLS_STR_DISCONNECT(threads, thread_info_changed);
   }
 
   void log(const mkt_str& queue, const mkt_str& message, const any& data)
@@ -350,6 +360,8 @@ namespace mkt
       le.insert(log_entries::value_type(cur_time, le_p));
       log_entry_serial_map_ref()[le_p->get<4>()] = le_p;
     }
+
+    log_queue_changed()(queue);
   }
 
   log_entries_ptr get_logs(const mkt_str& queue_regex,

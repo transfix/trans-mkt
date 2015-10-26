@@ -228,7 +228,7 @@ namespace
     using namespace std;
     using namespace boost;
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    mkt::thread_map tm = mkt::threads();
+    const mkt::thread_map& tm = mkt::threads();
     bool expand_info = false;
 
     //check for expand_info keyword after command arg
@@ -236,7 +236,14 @@ namespace
       expand_info = true;
     
     stringstream ss;
-    BOOST_FOREACH(mkt::thread_map::value_type& cur, tm)
+
+    // get number of active threads
+    size_t t_count = 0;
+    BOOST_FOREACH(const mkt::thread_map::value_type& cur, tm)
+      if(cur.second) t_count++;
+
+    size_t t_cur = 0;
+    BOOST_FOREACH(const mkt::thread_map::value_type& cur, tm)
       if(cur.second)
         {
           string ti = mkt::get_thread_info(cur.first);
@@ -255,11 +262,14 @@ namespace
               catch(...){}
             }
 
-	  ss << boost::str(boost::format("\"%1%\", \"%2%\", \"%3%\"")
+	  ss << (t_cur==0?"\n":"")
+	     << boost::str(boost::format("{%1%} {%2%} {%3%}")
 			   % cur.first
 			   % cur.second->get_id()
 			   % ti)
-	     << endl;
+	     << (t_count>1?",\n":"");
+
+	  t_cur++;
         }
 
     mkt::ret_val(ss.str());
@@ -281,6 +291,8 @@ namespace
 namespace mkt
 {
   MKT_DEF_MAP_CHANGE_SIGNAL(threads_changed);
+  MKT_DEF_MAP_CHANGE_SIGNAL(thread_progress_changed);
+  MKT_DEF_MAP_CHANGE_SIGNAL(thread_info_changed);
 
   void init_threads()
   {
@@ -324,14 +336,6 @@ namespace mkt
     return _threads_default_keyname;
   }
 
-  //Use this to trigger the threads_changed signal because
-  //problems happen when signals are envoked during program start/exit due to static
-  //initialization order.
-  void trigger_threads_changed(const mkt_str& key)
-  {
-    threads_changed()(key);
-  }
-
   thread_map threads()
   {
     boost::this_thread::interruption_point();
@@ -353,7 +357,10 @@ namespace mkt
     boost::this_thread::interruption_point();
 
     if(has_thread(key) && threads(key))
-      threads(key)->interrupt();
+      {
+	std::cout << BOOST_CURRENT_FUNCTION << ": interrupting " << key << std::endl;
+	threads(key)->interrupt();
+      }
 
     {
       unique_lock lock(threads_mutex_ref());
@@ -361,24 +368,32 @@ namespace mkt
       update_thread_keys();
     }
 
-    trigger_threads_changed(key);
+    threads_changed()(key);
   }
 
   void threads(const thread_map& map)
   {
     boost::this_thread::interruption_point();
+    arg_vec t_keys = thread_keys();
+    std::set<mkt_str> t_keys_set(t_keys.begin(), t_keys.end());
+
     {
       unique_lock lock(threads_mutex_ref());
       
       BOOST_FOREACH(thread_map::value_type t, threads_ref())
 	if(t.second) t.second->interrupt();
-
+      
       threads_ref() = map;
       thread_progress_ref().clear();
       update_thread_keys();
     }
 
-    trigger_threads_changed("all");
+    // get any new keys
+    t_keys = thread_keys();
+    t_keys_set.insert(t_keys.begin(), t_keys.end());
+
+    BOOST_FOREACH(const mkt_str& key, t_keys_set)
+      threads_changed()(key);
   }
 
   bool has_thread(const mkt_str& key)
@@ -444,7 +459,7 @@ namespace mkt
     }
 
     if(changed)
-      trigger_threads_changed(key);
+      thread_progress_changed()(key);
   }
 
   void finish_thread_progress(const mkt_str& key)
@@ -464,7 +479,7 @@ namespace mkt
 
       thread_progress_ref().erase(tid);
     }
-    trigger_threads_changed(key);
+    thread_progress_changed()(key);
   }
 
   mkt_str thread_key(thread_id tid)
@@ -491,12 +506,15 @@ namespace mkt
     return ret_val;
   }
 
-  void remove_thread(const mkt_str& key)
+  void remove_thread(const mkt_str& key, bool do_interrupt)
   {
     boost::this_thread::interruption_point();
 
-    if(has_thread(key) && threads(key))
-      threads(key)->interrupt();
+    if(do_interrupt && has_thread(key) && threads(key))
+      {
+	std::cout << BOOST_CURRENT_FUNCTION << ": interrupting " << key << std::endl;
+	threads(key)->interrupt();
+      }
 
     {
       unique_lock lock(threads_mutex_ref());
@@ -504,7 +522,7 @@ namespace mkt
       update_thread_keys();
     }
 
-    trigger_threads_changed(key);
+    threads_changed()(key);
   }
 
   mkt_str unique_thread_key(const mkt_str& hint)
@@ -512,10 +530,12 @@ namespace mkt
     mkt_str h = hint.empty() ? "thread" : hint;
     //Make a unique key name to use by adding a number to the key
     mkt_str uniqueThreadKey = h;
-    unsigned int i = 0;
+    unsigned int i = 1;
     while(has_thread(uniqueThreadKey))
-      uniqueThreadKey = 
-        h + boost::lexical_cast<mkt_str>(i++);
+      uniqueThreadKey = h + 
+	"__" + 
+	boost::lexical_cast<mkt_str>(i++) +
+	"__";
     return uniqueThreadKey;
   }
 
@@ -536,7 +556,7 @@ namespace mkt
 
       thread_info_ref()[tid] = infostr;
     }
-    trigger_threads_changed(key);
+    thread_info_changed()(key);
   }
 
   mkt_str get_thread_info(const mkt_str& key)
@@ -590,7 +610,7 @@ namespace mkt
   thread_feedback::~thread_feedback()
   {
     finish_thread_progress();
-    remove_thread(thread_key());
+    remove_thread(thread_key(), false);
   }
 
   wait_for_threads::wait_for_threads()

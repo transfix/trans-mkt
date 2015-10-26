@@ -21,14 +21,14 @@ namespace mkt
 }
 
 #define MKT_DEF_EXCEPTION(name)                                                \
-  class name : public mkt::exception		                               \
+  class name : public mkt::exception                                           \
   {                                                                            \
   public:                                                                      \
-    name () : _msg(#name) {}                                                   \
-    name (const std::string& msg) :                                            \
+    inline name () : _msg(#name) {}                                            \
+    inline name (const std::string& msg) :                                     \
       _msg(boost::str(boost::format(#name " exception: %1%") % msg)) {}        \
-    virtual ~name() throw() {}                                                 \
-    virtual const std::string& what_str() const throw() { return _msg; }       \
+    inline virtual ~name() throw() {}                                          \
+    inline virtual const std::string& what_str() const throw() { return _msg; }\
   private:                                                                     \
     std::string _msg;                                                          \
   }

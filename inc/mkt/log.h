@@ -28,6 +28,8 @@ namespace mkt
   typedef std::map<mkt_str, log_entries_ptr>   log_entry_queues;
   typedef std::map<uint64, log_entry_ptr>      log_entry_serial_map;
 
+  map_change_signal& log_queue_changed();
+
   void init_log();
   void final_log();
 

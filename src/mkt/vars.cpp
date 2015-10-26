@@ -95,12 +95,6 @@ namespace
     }
 }
 
-//This module's exceptions
-namespace mkt
-{
-  MKT_DEF_EXCEPTION(vars_error);
-}
-
 //This module's static data
 namespace
 {
@@ -189,9 +183,24 @@ namespace
 
   // copies the map at the specified from_context to the one at to_context
   void var_copy_map(const mkt::var_context& to_context,
-		    const mkt::var_context& from_context)
+		    const mkt::var_context& from_context,
+		    bool no_locals = true,
+		    bool only_if_newer = true)
   {
-    var_map_ref(to_context) = var_copy_map(from_context);
+    mkt::variable_map from_map = var_copy_map(from_context, no_locals);
+    mkt::variable_map& to_map = var_map_ref(to_context);
+
+    BOOST_FOREACH(mkt::variable_map::value_type& cur, from_map)
+      {
+	mkt::variable_value& from_val = cur.second;
+	if(only_if_newer && to_map.find(cur.first) != to_map.end())
+	  {
+	    mkt::variable_value& to_val = to_map[cur.first];
+	    if(to_val.mod_time() > from_val.mod_time())
+	      continue;
+	  }
+	to_map[cur.first] = from_val;
+      }
   }
 
   void var_map_push(const mkt::vms_key& key = 
@@ -207,31 +216,7 @@ namespace
   {
     std::vector<mkt::variable_map> &vms = 
       _get_vars_data()->_var_map_stacks[key];
-
-    //copy all non local vars to one step up the stack so we
-    //dont lose changes to globals. Also copy the local _ var to
-    //act as a return value.
-    mkt::variable_map vm = var_map_ref(mkt::var_context(0,key));
-    std::set<mkt::mkt_str> local_vars;
-    BOOST_FOREACH(const mkt::variable_map::value_type& cur, vm)
-      {
-	if(cur.first[0]=='_' && cur.first!="_")
-	  local_vars.insert(cur.first);
-      }
-
-    //remove flagged local vars from the variable map copy
-    BOOST_FOREACH(const mkt::mkt_str& var_name, local_vars)
-      vm.erase(var_name);
-
     if(!vms.empty()) vms.pop_back();
-
-    //copy to the new stack level
-    mkt::variable_map lower_vm = var_map_ref(mkt::var_context(0,key));
-    BOOST_FOREACH(const mkt::variable_map::value_type& cur, vm)
-      {
-	lower_vm[cur.first] = cur.second;
-      }
-    var_map_ref(mkt::var_context(0,key)) = lower_vm;
   }
 
   inline mkt::mutex& var_map_mutex_ref()
@@ -256,22 +241,6 @@ namespace
     bool val = mkt::has_var(args[1], mkt::var_context(1));
     mkt::ret_val(val);
   }
-
-#if 0
-  void pop(const mkt::argument_vector& args)
-  {
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    mkt::pop_vars();
-    mkt::ret_val(mkt::vars_stack_size());
-  }
-
-  void push(const mkt::argument_vector& args)
-  {
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
-    mkt::push_vars();
-    mkt::ret_val(mkt::vars_stack_size());
-  }
-#endif
 
   void set(const mkt::argument_vector& args)
   {
@@ -300,15 +269,6 @@ namespace
     else
       mkt::var(args[1], args[2], mkt::var_context(1)); //actually do an assignment operation
     
-    //Erase this stack frame so vars don't get promoted upwards and erase the
-    //globals set via this command.
-    //TODO: this all doesn't sit well with me... fix it!!!!!!!
-    mkt::argument_vector vars = mkt::list_vars(mkt::var_context(0));
-    BOOST_FOREACH(const mkt::mkt_str& cur_var, vars)
-      {
-	mkt::unset_var(cur_var, mkt::var_context(0));
-      }
-
     //return the value that was set
     mkt::ret_val(mkt::var(args[1], mkt::var_context(1)));
   }
@@ -402,7 +362,8 @@ namespace mkt
       variable_map& vm = var_map_ref(context);
       if(vm.find(varname)==vm.end()) creating = true;
       if(creating) var_check_name(varname);
-      val = vm[varname];
+      variable_value v_val = vm[varname];
+      val = v_val.data();
     }
     
     if(creating) var_changed()(varname, context);
@@ -421,8 +382,9 @@ namespace mkt
       mkt_str local_varname(varname); trim(local_varname);
       mkt_str local_val(val);
       variable_map& vm = var_map_ref(context);
-      if(vm[local_varname] == local_val) return; //nothing to do
-      vm[local_varname] = local_val;
+      if(vm.find(local_varname) != vm.end() &&
+	 vm[local_varname].data() == local_val) return; //nothing to do
+      vm[local_varname].data(local_val);
     }
     var_changed()(varname, context);
   }
@@ -487,6 +449,16 @@ namespace mkt
     unique_lock lock(var_map_mutex_ref());
     thread_info ti(BOOST_CURRENT_FUNCTION);
     return var_map_stack_size(key);    
+  }
+
+  void vars_copy(const var_context& to_context,
+		 const var_context& from_context,
+		 bool no_locals,
+		 bool only_if_newer)
+  {
+    unique_lock lock(var_map_mutex_ref());
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    var_copy_map(to_context, from_context, no_locals, only_if_newer);
   }
 
   argument_vector split(const mkt_str& args)
