@@ -40,8 +40,15 @@ endif(USING_STANDARD_INSTALL_LOCATION)
 
 # newer versions of msvc enable c++11 by default. GCC & Clang need it specified.
 if(NOT MSVC)
+  set(CPP11_ARG "-std=c++11")
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "4.7")
+      set(CPP11_ARG "-std=c++0x") 
+    endif()
+  endif()
+
   # Initialize CXXFLAGS.
-  set(CMAKE_CXX_FLAGS                "-Wall -std=c++11")
+  set(CMAKE_CXX_FLAGS                "-Wall ${CPP11_ARG}")
   set(CMAKE_CXX_FLAGS_DEBUG          "-O0 -g")
   set(CMAKE_CXX_FLAGS_MINSIZEREL     "-Os -DNDEBUG")
   set(CMAKE_CXX_FLAGS_RELEASE        "-O4 -DNDEBUG")

@@ -12,6 +12,7 @@
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/regex.hpp>
+#include <boost/array.hpp>
 
 #ifdef __UNIX__
 #include <dlfcn.h>
