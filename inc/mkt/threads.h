@@ -3,6 +3,7 @@
 
 #include <mkt/config.h>
 #include <mkt/types.h>
+#include <mkt/exceptions.h>
 
 #include <boost/thread.hpp>
 #include <boost/foreach.hpp>
@@ -72,6 +73,20 @@ namespace mkt
     thread_info _info;
   };
 
+  typedef boost::
+    signals2::
+    signal<void (const mkt_str& /* caller thread key */, 
+		 const mkt_str& /* this thread key */)> 
+    thread_call_signal;
+  thread_call_signal& thread_initialized();
+  thread_call_signal& thread_finalized();
+  typedef boost::
+    signals2::
+    signal<void (const mkt_str& /* this thread key */, 
+		 const mkt_str& /* exception string */)> 
+    thread_exception_signal;
+  thread_exception_signal& thread_exception();
+
   //helper for start_thread that sets up a thread_feedback
   //object for the thread.
   template<class T>
@@ -80,19 +95,38 @@ namespace mkt
     public:
       init_thread(const T& t) : 
 	_t(t), _caller_thread_key(thread_key()) {}
+
+      class thread_signals
+      {
+      public:
+	thread_signals(const mkt_str& caller_key,
+		       const mkt_str& this_key)
+	  : _caller_key(caller_key), _this_key(this_key) 
+	  {
+	    thread_initialized()(_caller_key, _this_key);
+	  }
+	~thread_signals()
+	  {
+	    thread_finalized()(_caller_key, _this_key);
+	  }
+      private:
+	mkt_str _caller_key;
+	mkt_str _this_key;
+      };
+
       void operator()()
       {
+	thread_signals ts(_caller_thread_key, thread_key());
         try
           {
             thread_feedback tf(BOOST_CURRENT_FUNCTION);
-	    //TODO: copy vars from calling thread's var map stack to this
-	    //one.
-	    
+	    //TODO: copy vars from calling thread's var map to this one.
             _t();
           }
-        catch(...)
+        catch(mkt::exception& e)
           {
             //TODO: log this event...
+	    thread_exception()(thread_key(), e.what_str());
           }
       }
     private:

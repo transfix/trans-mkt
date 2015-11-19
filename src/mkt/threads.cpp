@@ -294,6 +294,9 @@ namespace mkt
   MKT_DEF_MAP_CHANGE_SIGNAL(threads_changed);
   MKT_DEF_MAP_CHANGE_SIGNAL(thread_progress_changed);
   MKT_DEF_MAP_CHANGE_SIGNAL(thread_info_changed);
+  MKT_DEF_SIGNAL(thread_call_signal, thread_initialized);
+  MKT_DEF_SIGNAL(thread_call_signal, thread_finalized);
+  MKT_DEF_SIGNAL(thread_exception_signal, thread_exception);
 
   void init_threads()
   {
