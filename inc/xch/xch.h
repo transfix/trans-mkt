@@ -4,4 +4,7 @@
 #include <xch/assets.h>
 #include <xch/accounts.h>
 
+extern "C" void mkt_init_xch();
+extern "C" void mkt_final_xch();
+
 #endif

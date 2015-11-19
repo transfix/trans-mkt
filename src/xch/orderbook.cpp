@@ -899,7 +899,7 @@ int main(int argc, char **argv)
   using namespace std;
   
   mkt::wait_for_threads w;
-  mkt::argv(argc, argv);
+  mkt::app a(argc, argv);
 
   //debug
   xch::set_asset_id("XBT", 31337);

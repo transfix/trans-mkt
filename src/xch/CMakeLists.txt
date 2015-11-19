@@ -28,11 +28,13 @@ include_directories(
 set(XCH_LINK_LIBS "")
 
 add_library(xch MODULE ${SOURCE_FILES} ${INCLUDE_FILES})
+add_library(xch-s STATIC ${SOURCE_FILES} ${INCLUDE_FILES})
 
 SetupBoost(xch)
+SetupBoost(xch-s)
 
 target_link_libraries(xch ${MKT_LINK_LIBS})
+target_link_libraries(xch-s ${MKT_LINK_LIBS})
 
-#add_executable(trans-xch orderbook.cpp)
-#target_link_libraries(trans-xch xch mkt)
-
+add_executable(trans-xch orderbook.cpp)
+target_link_libraries(trans-xch xch-s mkt)
