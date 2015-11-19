@@ -30,24 +30,16 @@ namespace
   class syncer
   {
   public:
-    syncer(const std::string& v, 
-           const std::string& h)
+    syncer(const mkt::mkt_str& v, 
+           const mkt::mkt_str& h)
       : _varname(v), _host(h) {}
-    void operator()(const std::string& in_var,
-		    const mkt::var_context& context)
+    void operator()(const mkt::mkt_str& in_var,
+		    const mkt::mkt_str& t_key)
     {
       using namespace boost::algorithm;
       if(_varname != in_var) return;
-
-      //For now, don't sync vars that change from any other stack
-      //level other than the deepest. Also, don't sync if it's a
-      //var change outside of the main thread's default stack.
-      //TODO: change this when we make the set command support setting
-      //vars in other parts of the stack and with different keys.
-      if(context != mkt::var_context())
-	return;
       
-      std::string val = mkt::var(in_var);
+      mkt::mkt_str val = mkt::get_var(in_var, t_key);
 
       //do the remote var syncronization as an asyncronous command
       mkt::argument_vector remote_set_args;
@@ -67,6 +59,7 @@ namespace
           remote_set_args.push_back(host_components[1]);
         }
  
+      // TODO: thread key
       remote_set_args.push_back("set");
       remote_set_args.push_back(in_var);
       remote_set_args.push_back(val);
@@ -82,8 +75,8 @@ namespace
     }
 
   private:
-    std::string _varname;
-    std::string _host;
+    mkt::mkt_str _varname;
+    mkt::mkt_str _host;
   };
 
   void sync_var(const mkt::argument_vector& args)
@@ -297,7 +290,7 @@ namespace mkt
     try
       {
         mkt::exec(av);
-        result[0] = mkt::var("_");
+        result[0] = mkt::get_var("_");
 	result[1] = string("success");
       }
     catch(mkt::exception& e)
@@ -331,17 +324,18 @@ namespace mkt
       throw xmlrpc_remote_error(result[0]);
   }
 
-  //Calls echo on any mkt xmlrpc servers listed in the __remote_echo system variable
+  //Calls echo on any mkt xmlrpc servers listed in the sys_remote_echo system variable
   //as a comma separated list of the form:
   // server0:31337, server1:31338, server2:31339
   void do_remote_echo(const std::string& str)
   {
     using namespace boost;
     using namespace boost::algorithm;
-    const std::string remote_echo_varname("__remote_echo");
+    const mkt::mkt_str remote_echo_varname("sys_remote_echo");
     if(mkt::has_var(remote_echo_varname))
       {
-        std::string remote_echo_value = mkt::var(remote_echo_varname);
+	// TODO: thread key
+        mkt::mkt_str remote_echo_value = mkt::get_var(remote_echo_varname);
         mkt::argument_vector remote_servers;
         split(remote_servers, remote_echo_value, is_any_of(","), token_compress_on);
 

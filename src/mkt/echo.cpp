@@ -138,13 +138,13 @@ namespace mkt
 
     thread_info ti(BOOST_CURRENT_FUNCTION);
 
-    const string echo_functions_varname("sys_echo_functions");
-    string echo_functions_value = var(echo_functions_varname);
+    const mkt_str echo_functions_varname("sys_echo_functions");
+    mkt_str echo_functions_value = get_var(echo_functions_varname);
     mkt::argument_vector echo_functions_strings;
     split(echo_functions_strings, echo_functions_value, is_any_of(","), token_compress_on);
 
     //execute each echo function
-    BOOST_FOREACH(string& echo_function_id_string, echo_functions_strings)
+    BOOST_FOREACH(mkt_str& echo_function_id_string, echo_functions_strings)
       {
         trim(echo_function_id_string);
         if(echo_function_id_string.empty()) continue;
@@ -183,7 +183,7 @@ namespace mkt
   {
     using namespace boost;
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    if(os && !var<bool>("sys_echo_quiet")) 
+    if(os && !get_var<bool>("sys_echo_quiet")) 
       {
         (*os) << str;
       }
@@ -215,7 +215,7 @@ namespace mkt
 #ifdef MKT_USING_XMLRPC
     echo_register(2, mkt::do_remote_echo);
 #endif
-    var("sys_echo_functions", mkt_str("0, 2"));
+    set_var("sys_echo_functions", mkt_str("0, 2"));
   }
 
   void final_echo()

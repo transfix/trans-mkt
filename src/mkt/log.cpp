@@ -204,15 +204,13 @@ namespace mkt
 {
   MKT_DEF_MAP_CHANGE_SIGNAL(log_queue_changed);
 
-  void var_changed_slot(const mkt_str& varname, const var_context& context)
+  void var_changed_slot(const mkt_str& varname, const mkt_str& t_key)
   {
     using namespace boost;
-    log("vars",str(format("%1%: {%2%}, {context: %3%, %4%, %5%}")
+    log("vars",str(format("%1%: {%2%}, {t_key: %3%}")
 		   % varname
-		   % var(varname)
-		   % context.stack_depth() 
-		   % context.key().get<0>()
-		   % context.key().get<1>()));
+		   % get_var(varname)
+		   % t_key));
   }
 
   void echo_slot(uint64 echo_id, const mkt_str& msg)
@@ -225,13 +223,11 @@ namespace mkt
 
   void command_slot(const mkt_str& queue,
 		    const argument_vector& cmd,
-		    const thread_id& tid,
-		    const mkt_str& stackname)
+		    const mkt_str& t_key)
   {
     using namespace boost;
-    log(queue,str(format("%1%, %2%: {%3%}")
-		  % thread_key(tid)
-		  % stackname
+    log(queue,str(format("%1%: {%2%}")
+		  % t_key
 		  % join(cmd)));
   }
 
@@ -304,9 +300,9 @@ namespace mkt
     MKT_MCLS_STR_CONNECT(modules, module_post_final);
     MKT_MCLS_CONNECT(echo, echo_function_registered, int64);
     command_pre_exec().connect(boost::bind(command_slot,"command_pre_exec",
-					   _1, _2, _3));
+					   _1, _2));
     command_post_exec().connect(boost::bind(command_slot,"command_post_exec",
-					    _1, _2, _3));
+					    _1, _2));
     MKT_MCLS_STR_CONNECT(threads, threads_changed);
 
     //TODO: the following are too verbose...
@@ -332,9 +328,9 @@ namespace mkt
     MKT_MCLS_DISCONNECT(echo, echo_function_registered, int64);
     //echo_post_exec().disconnect(echo_slot);
     command_pre_exec().disconnect(boost::bind(command_slot,"command_pre_exec",
-					      _1, _2, _3));
+					      _1, _2));
     command_post_exec().disconnect(boost::bind(command_slot,"command_post_exec",
-					       _1, _2, _3));
+					       _1, _2));
     MKT_MCLS_STR_DISCONNECT(threads, threads_changed);
     //    MKT_MCLS_STR_DISCONNECT(threads, thread_progress_changed);
     //MKT_MCLS_STR_DISCONNECT(threads, thread_info_changed);

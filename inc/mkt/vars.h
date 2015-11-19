@@ -42,10 +42,21 @@ namespace mkt
       T val;
       any_ptr& d_ptr = get<0>();
       //default to empty string for now
-      if(!d_ptr) d_ptr.reset(new any(mkt_str()));
+      if(!d_ptr) data(mkt_str());
       try
 	{
-	  val = boost::any_cast<T>(*d_ptr);
+	  // Try casting to string then doing a lexical cast.
+	  // If it is not a string then try casting directly.
+	  try
+	    {
+	      mkt_str val_s = boost::any_cast<mkt_str>(*d_ptr);
+	      val = string_cast<T>(val_s);
+	    }
+	  catch(boost::bad_any_cast&)
+	    {
+	      val = boost::any_cast<T>(*d_ptr);
+	    }
+
 	  ptime& access_time = get<3>();
 	  access_time = now();
 	}
@@ -83,72 +94,47 @@ namespace mkt
   };
 
   typedef std::map<mkt_str, variable_value>         variable_map;
-  typedef std::vector<variable_map>                 variable_map_stack;
-  typedef boost::tuple<
-    mkt_str,  //thread key 
-    mkt_str   //stack name
-    > variable_map_stacks_key;
-  typedef variable_map_stacks_key                   vms_key; //shorthand
-  typedef std::map<vms_key, 
-                   variable_map_stack>              variable_map_stacks;
-  const mkt_str& vars_main_stackname();
-  const vms_key& vars_variable_map_stacks_key_default();
-  inline const vms_key& vms_key_def() //shorthand for the above
-    { return vars_variable_map_stacks_key_default(); }
+
+  // each thread has its own variable_map
+  typedef std::map<mkt_str, variable_map>           variable_maps;
 
   void init_vars();
   void final_vars();
 
-  // Default var_context() is highest point on this thread's main stack
-  struct var_context : boost::tuple<size_t, vms_key>
-  {
-    inline var_context(size_t stack_depth = 0, 
-		       const vms_key& key = vms_key_def())
-      : boost::tuple<size_t, vms_key>(stack_depth, key) {}
-    inline var_context(const var_context& c)
-      : boost::tuple<size_t, vms_key>(c) {}
-    inline size_t stack_depth() const { return get<0>(); }
-    inline var_context& stack_depth(size_t d) { get<0>() = d; return *this; }
-    inline const vms_key& key() const { return get<1>(); }
-    inline var_context& key(const vms_key& k) { get<1>() = k; return *this; }    
-  };
-
-  mkt_str var(const mkt_str& varname, 
-	      const var_context& context = var_context());
+  mkt_str get_var(const mkt_str& varname, 
+		  const mkt_str& t_key = thread_key());
   
-  void var(const mkt_str& varname, const mkt_str& val,
-	   const var_context& context = var_context());
+  void set_var(const mkt_str& varname, const mkt_str& val,
+	       const mkt_str& t_key = thread_key());
 
   void unset_var(const mkt_str& varname,
-		 const var_context& context = var_context());
+		 const mkt_str& t_key = thread_key());
 
   bool has_var(const mkt_str& varname,
-	       const var_context& context = var_context());
+	       const mkt_str& t_key = thread_key());
 
-  argument_vector list_vars(const var_context& context = var_context());
+  argument_vector list_vars(const mkt_str& t_key = thread_key());
 
-  void push_vars(const vms_key& key = vms_key_def());
-  void pop_vars(const vms_key& key = vms_key_def());
-  size_t vars_stack_size(const vms_key& key = vms_key_def());
-  void vars_copy(const var_context& to_context,
-		 const var_context& from_context = var_context(),
+  void vars_copy(const mkt_str& to_t_key,
+		 const mkt_str& from_t_key = thread_key(),
 		 bool no_locals = true,
 		 bool only_if_newer = true);
 
   typedef boost::
     signals2::
-    signal<void (const mkt_str&, const var_context&)> 
+    signal<void (const mkt_str& /* varname */, 
+		 const mkt_str& /* thread_key */)> 
     var_change_signal;
   var_change_signal& var_changed();
   
   //template shortcuts for casting var values
   template <class T>
-    inline T var(const mkt_str& varname)
+    inline T get_var(const mkt_str& varname)
     {
       thread_info ti(BOOST_CURRENT_FUNCTION);
       using namespace boost;
       T val;
-      mkt_str str_val = var(varname);
+      mkt_str str_val = get_var(varname);
       try
         {
           val = string_cast<T>(str_val);
@@ -163,7 +149,7 @@ namespace mkt
     }
   
   template <class T>
-    inline void var(const mkt_str& varname, const T& val)
+    inline void set_var(const mkt_str& varname, const T& val)
     {
       thread_info ti(BOOST_CURRENT_FUNCTION);
       mkt_str str_val;
@@ -177,28 +163,28 @@ namespace mkt
 	    boost::str(boost::format("Invalid value type for variable %1%: %2%")
 		       % varname % val));
         }
-      var(varname, str_val);
+      set_var(varname, str_val);
     }
 
   //specializations for bool
   template <> 
-    inline bool var<bool>(const mkt_str& varname)
+    inline bool get_var<bool>(const mkt_str& varname)
     {
       thread_info ti(BOOST_CURRENT_FUNCTION);
-      mkt_str str_var = var(varname);
+      mkt_str str_var = get_var(varname);
       if(str_var.empty()) return false;
       if(str_var == "true") return true;
       if(str_var == "false") return false;
-      int i_var = var<int>(varname);
+      int i_var = get_var<int>(varname);
       return bool(i_var);
     }
 
   template <>
-    inline void var<bool>(const mkt_str& varname, const bool& val)
+    inline void set_var<bool>(const mkt_str& varname, const bool& val)
     {
       thread_info ti(BOOST_CURRENT_FUNCTION);
       mkt_str str_val = val ? "true" : "false";
-      var(varname, str_val);
+      set_var(varname, str_val);
     }
 
   //sets the return value for the current command
@@ -206,7 +192,7 @@ namespace mkt
     inline void ret_val(const T& val = T())
     {
       thread_info ti(BOOST_CURRENT_FUNCTION);
-      var("_", val);
+      set_var("_", val);
     }
 
   //Splits a string into an argument vector, taking into account

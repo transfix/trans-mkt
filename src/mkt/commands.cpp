@@ -83,8 +83,8 @@ namespace
 
   void cmd_restore_prompt()
   {
-    if(!mkt::has_var("PS1") || mkt::var("PS1") == "")
-      mkt::var("PS1", "mkt> "); //default prompt
+    if(!mkt::has_var("PS1") || mkt::get_var("PS1").empty())
+      mkt::set_var("PS1", "mkt> "); //default prompt
   }
 
   inline void cmd_check_name(const mkt::mkt_str& str)
@@ -364,7 +364,6 @@ namespace mkt
     return cmds().find(name) != cmds().end();
   }
 
-  //TODO: co-routines by using different stack names.
   void exec(const argument_vector& args)
   {
     using namespace boost;
@@ -394,17 +393,13 @@ namespace mkt
     // to a command execution are those with names that begin with '_'. 
     // '_' itself is a special variable reserved for use as a command return value.
     // It is always propagated back up along with the non-local variables.
-    push_vars();
-    var("_", ""); //reset the return val for this stack frame
-    command_pre_exec()(local_args,
-		       boost::this_thread::get_id(),
-		       vars_main_stackname());
+    //push_vars();
+    //var("_", ""); //reset the return val for this stack frame
+    command_pre_exec()(local_args, thread_key());
     cmd.get<0>()(local_args);
-    command_post_exec()(local_args,
-			boost::this_thread::get_id(),
-			vars_main_stackname());
-    vars_copy(var_context(1));
-    pop_vars();
+    command_post_exec()(local_args, thread_key());
+    //vars_copy(var_context(1));
+    //pop_vars();
   }
 
   void ex(const mkt_str& cmd, bool escape)

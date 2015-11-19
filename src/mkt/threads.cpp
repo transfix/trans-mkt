@@ -36,6 +36,7 @@ namespace
   bool                              _threads_atexit = false;
   typedef mkt::mkt_str mkt_str;
   const mkt_str                     _threads_default_keyname("unknown");
+  const mkt_str                     _threads_main_thread_key("main_thread");
   mkt::thread_id                    _threads_main_thread_id = boost::this_thread::get_id();
 
   void _threads_cleanup()
@@ -124,7 +125,7 @@ namespace
       thread_info_ref().erase(tid);
 
     // set id -> key mapping and thread info for main_thread
-    thread_keys_ref()[_threads_main_thread_id] = "main_thread";
+    thread_keys_ref()[_threads_main_thread_id] = _threads_main_thread_key;
     if(thread_info_ref()[_threads_main_thread_id].empty())
       thread_info_ref()[_threads_main_thread_id] = "running";
   }
@@ -310,7 +311,7 @@ namespace mkt
     add_command("sleep", sleep_cmd, "sleep <milliseconds>\nSleep for the time specified.");
 
     // add thread_map entry for the main thread
-    threads("main_thread", thread_ptr());
+    threads(threads_main_thread_key(), thread_ptr());
   }
 
   void final_threads()
@@ -328,12 +329,17 @@ namespace mkt
       remove_thread(key);
 
     // remove entry for main_thread
-    remove_thread("main_thread");
+    remove_thread(threads_main_thread_key());
   }
 
   const mkt_str& threads_default_keyname()
   {
     return _threads_default_keyname;
+  }
+
+  const mkt_str& threads_main_thread_key()
+  {
+    return _threads_main_thread_key;
   }
 
   thread_map threads()

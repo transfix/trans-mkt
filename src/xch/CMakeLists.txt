@@ -7,13 +7,11 @@ endif(WIN32)
 set(INCLUDE_FILES
   ../../inc/xch/accounts.h
   ../../inc/xch/assets.h
-  ../../inc/xch/xch.h
 )
 
 set(SOURCE_FILES
   accounts.cpp
   assets.cpp
-  xch.cpp
 )
 
 source_group("Source Files" FILES ${SOURCE_FILES})
@@ -25,16 +23,18 @@ include_directories(
   .
 )
 
-set(XCH_LINK_LIBS "")
+set(XCH_LINK_LIBS "mkt")
 
-add_library(xch MODULE ${SOURCE_FILES} ${INCLUDE_FILES})
 add_library(xch-s STATIC ${SOURCE_FILES} ${INCLUDE_FILES})
 
-SetupBoost(xch)
-SetupBoost(xch-s)
+# TODO: fix module linking
+#add_library(xch MODULE ../../inc/xch/xch.h xch.cpp)
 
-target_link_libraries(xch ${MKT_LINK_LIBS})
-target_link_libraries(xch-s ${MKT_LINK_LIBS})
+SetupBoost(xch-s)
+#SetupBoost(xch)
+
+target_link_libraries(xch-s ${XCH_LINK_LIBS})
+#target_link_libraries(xch xch-s)
 
 add_executable(trans-xch orderbook.cpp)
-target_link_libraries(trans-xch xch-s mkt)
+target_link_libraries(trans-xch xch-s)

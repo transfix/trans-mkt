@@ -38,6 +38,7 @@ namespace mkt
   mkt_str thread_key(thread_id tid = boost::this_thread::get_id());
   arg_vec thread_keys();
   const mkt_str& threads_default_keyname();
+  const mkt_str& threads_main_thread_key();
   void remove_thread(const mkt_str& key, bool do_interrupt = true);
   mkt_str unique_thread_key(const mkt_str& hint = mkt_str());
 

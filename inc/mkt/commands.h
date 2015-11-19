@@ -53,7 +53,8 @@ namespace mkt
   map_change_signal&   command_removed();
   typedef boost::
     signals2::
-    signal<void (const argument_vector&, const thread_id&, const mkt_str&)> 
+    signal<void (const argument_vector& /* command args */, 
+		 const mkt_str& /* thread key */)> 
     command_exec_signal;
   command_exec_signal& command_pre_exec();
   command_exec_signal& command_post_exec();

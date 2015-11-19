@@ -140,7 +140,7 @@ namespace
                         << account_id 
                         << " initialized." << std::endl;
     
-    mkt::var("_", account_id); //return the account_id
+    mkt::ret_val(account_id); //return the account_id
   }
 }
 

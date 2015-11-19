@@ -161,7 +161,7 @@ namespace mkt
 
     //set the default module path to be the CWD
     if(!has_var("sys_ld"))
-      var("sys_ld", ".");
+      set_var("sys_ld", ".");
   }
 
   void final_modules()
@@ -191,7 +191,7 @@ namespace mkt
     }
 
     // check all known locations of possible modules
-    mkt_str mod_path = var("sys_ld");
+    mkt_str mod_path = get_var("sys_ld");
     argument_vector paths;
     split(paths, mod_path, is_any_of(":"), token_compress_on);
     path module_path;
