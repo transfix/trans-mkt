@@ -106,7 +106,7 @@ namespace
     cmd_restore_prompt();
 
     char *line;
-    while((line = readline(mkt::expand_vars(mkt::var("PS1")).c_str())))
+    while((line = readline(mkt::expand_vars(mkt::get_var("PS1")).c_str())))
       {
 	mkt::mkt_str str_line(line);
         add_history(line);
@@ -121,11 +121,11 @@ namespace
         catch(mkt::exception& e)
           {
 	    mkt::log("exceptions", e.what_str());
-	    mkt::var("_", e.what_str());
+	    mkt::set_var("_", e.what_str());
           }
 
 	//output the contents of the retval to stdout
-	mkt::mkt_str rv = mkt::var("_");
+	mkt::mkt_str rv = mkt::get_var("_");
 	std::cout << "_ <- {" << rv << "}" << endl;
 	mkt::ret_val(mkt::mkt_str());
 

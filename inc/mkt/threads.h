@@ -125,7 +125,6 @@ namespace mkt
           }
         catch(mkt::exception& e)
           {
-            //TODO: log this event...
 	    thread_exception()(thread_key(), e.what_str());
           }
       }

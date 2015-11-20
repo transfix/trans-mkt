@@ -231,6 +231,33 @@ namespace mkt
 		  % join(cmd)));
   }
 
+  void thread_exception_slot(const mkt_str& t_key,
+			     const mkt_str& ex_s)
+  {
+    using namespace boost;
+    log("threads",str(format("%1%: Exception: %2%")
+		      % t_key
+		      % ex_s));
+  }
+
+  void thread_init_slot(const mkt_str& caller_key,
+			const mkt_str& this_key)
+  {
+    using namespace boost;
+    log("threads",str(format("thread_initialized: %1% -> %2%")
+		      % caller_key
+		      % this_key));
+  }
+
+  void thread_final_slot(const mkt_str& caller_key,
+			 const mkt_str& this_key)
+  {
+    using namespace boost;
+    log("threads",str(format("thread_finalized: %1% -> %2%")
+		      % caller_key
+		      % this_key));
+  }
+
   template<class Key_Type>
   class map_change_log_slot
   {
@@ -304,6 +331,8 @@ namespace mkt
     command_post_exec().connect(boost::bind(command_slot,"command_post_exec",
 					    _1, _2));
     MKT_MCLS_STR_CONNECT(threads, threads_changed);
+    thread_initialized().connect(thread_init_slot);
+    thread_finalized().connect(thread_final_slot);
 
     //TODO: the following are too verbose...
     //echo_post_exec().connect(echo_slot);
@@ -332,6 +361,9 @@ namespace mkt
     command_post_exec().disconnect(boost::bind(command_slot,"command_post_exec",
 					       _1, _2));
     MKT_MCLS_STR_DISCONNECT(threads, threads_changed);
+    thread_exception().disconnect(thread_exception_slot);
+    thread_initialized().disconnect(thread_init_slot);
+    thread_finalized().disconnect(thread_final_slot);
     //    MKT_MCLS_STR_DISCONNECT(threads, thread_progress_changed);
     //MKT_MCLS_STR_DISCONNECT(threads, thread_info_changed);
   }

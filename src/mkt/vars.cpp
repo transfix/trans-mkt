@@ -270,6 +270,20 @@ namespace mkt
 {
   MKT_DEF_SIGNAL(var_change_signal, var_changed);
 
+  // copy vars from caller thread to new thread on init
+  void vars_copy_on_thread_init(const mkt_str& caller_key,
+				const mkt_str& this_key)
+  {
+    vars_copy(this_key, caller_key);
+  }
+
+  // copy vars from new thread to caller thread on finalize
+  void vars_copy_on_thread_final(const mkt_str& caller_key,
+				 const mkt_str& this_key)
+  {
+    vars_copy(caller_key, this_key);
+  }
+
   void init_vars()
   {
     using namespace std;
@@ -280,6 +294,9 @@ namespace mkt
     add_command("set", ::set, "set [<varname> <value>]\n"
 		"Sets a variable to the value specified.  If none, prints all variables in the system.");
     add_command("unset", ::unset, "unset <varname>\nRemoves a variable from the system.");
+
+    thread_initialized().connect(vars_copy_on_thread_init);
+    thread_finalized().connect(vars_copy_on_thread_final);
   }
 
   void final_vars()
@@ -288,6 +305,9 @@ namespace mkt
     remove_command("set");
     remove_command("has_var");
     remove_command("get");
+
+    thread_initialized().disconnect(vars_copy_on_thread_init);
+    thread_finalized().disconnect(vars_copy_on_thread_final);
 
     delete _vars_data;
     _vars_data = 0;
