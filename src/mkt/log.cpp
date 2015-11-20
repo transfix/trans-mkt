@@ -213,14 +213,6 @@ namespace mkt
 		   % t_key));
   }
 
-  void echo_slot(uint64 echo_id, const mkt_str& msg)
-  {
-    using namespace boost;
-    log("echo",str(format("{%1%}: {%2%}")
-		   % echo_id
-		   % msg));
-  }
-
   void command_slot(const mkt_str& queue,
 		    const argument_vector& cmd,
 		    const mkt_str& t_key)
@@ -331,13 +323,9 @@ namespace mkt
     command_post_exec().connect(boost::bind(command_slot,"command_post_exec",
 					    _1, _2));
     MKT_MCLS_STR_CONNECT(threads, threads_changed);
+    thread_exception().connect(thread_exception_slot);
     thread_initialized().connect(thread_init_slot);
     thread_finalized().connect(thread_final_slot);
-
-    //TODO: the following are too verbose...
-    //echo_post_exec().connect(echo_slot);
-    //    MKT_MCLS_STR_CONNECT(threads, thread_progress_changed);
-    //MKT_MCLS_STR_CONNECT(threads, thread_info_changed);
   }
 
   void final_log()
@@ -355,7 +343,6 @@ namespace mkt
     MKT_MCLS_STR_DISCONNECT(modules, module_pre_final);
     MKT_MCLS_STR_DISCONNECT(modules, module_post_final);
     MKT_MCLS_DISCONNECT(echo, echo_function_registered, int64);
-    //echo_post_exec().disconnect(echo_slot);
     command_pre_exec().disconnect(boost::bind(command_slot,"command_pre_exec",
 					      _1, _2));
     command_post_exec().disconnect(boost::bind(command_slot,"command_post_exec",
@@ -364,8 +351,6 @@ namespace mkt
     thread_exception().disconnect(thread_exception_slot);
     thread_initialized().disconnect(thread_init_slot);
     thread_finalized().disconnect(thread_final_slot);
-    //    MKT_MCLS_STR_DISCONNECT(threads, thread_progress_changed);
-    //MKT_MCLS_STR_DISCONNECT(threads, thread_info_changed);
   }
 
   void log(const mkt_str& queue, const mkt_str& message, const any& data)
