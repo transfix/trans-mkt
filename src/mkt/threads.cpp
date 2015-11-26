@@ -440,6 +440,10 @@ namespace mkt
   {
     boost::this_thread::interruption_point();
 
+    if(wait_for_threads::at_start() ||
+       wait_for_threads::at_exit())
+      return;
+
     //clamp progress to [0.0,1.0]
     progress = progress < 0.0 ? 
       0.0 : 
@@ -551,6 +555,10 @@ namespace mkt
   void set_thread_info(const mkt_str& key, const mkt_str& infostr)
   {
     boost::this_thread::interruption_point();
+
+    if(wait_for_threads::at_start() ||
+       wait_for_threads::at_exit()) return;
+
     {
       unique_lock lock(threads_mutex_ref());
 
@@ -565,6 +573,7 @@ namespace mkt
 
       thread_info_ref()[tid] = infostr;
     }
+
     thread_info_changed()(key);
   }
 

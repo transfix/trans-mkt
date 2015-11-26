@@ -26,15 +26,17 @@ include_directories(
 set(XCH_LINK_LIBS "mkt")
 
 add_library(xch-s STATIC ${SOURCE_FILES} ${INCLUDE_FILES})
+SetupBoost(xch-s)
+target_link_libraries(xch-s ${XCH_LINK_LIBS})
 
 # TODO: fix module linking
-#add_library(xch MODULE ../../inc/xch/xch.h xch.cpp)
-
-SetupBoost(xch-s)
-#SetupBoost(xch)
-
-target_link_libraries(xch-s ${XCH_LINK_LIBS})
-#target_link_libraries(xch xch-s)
+add_library(xch MODULE 
+  ../../inc/xch/xch.h 
+  xch.cpp 
+  ${SOURCE_FILES} 
+  ${INCLUDE_FILES}
+)
+SetupBoost(xch)
 
 add_executable(trans-xch orderbook.cpp)
 target_link_libraries(trans-xch xch-s)

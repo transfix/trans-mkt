@@ -108,7 +108,7 @@ namespace
     char *line;
     while((line = readline(mkt::expand_vars(mkt::get_var("PS1")).c_str())))
       {
-	mkt::mkt_str str_line(line);
+        mkt::mkt_str str_line(line);
         add_history(line);
         free(line);
 
@@ -120,16 +120,15 @@ namespace
           }
         catch(mkt::exception& e)
           {
-	    mkt::log("exceptions", e.what_str());
-	    mkt::set_var("_", e.what_str());
+            mkt::log("exceptions", e.what_str());
+            mkt::set_var("_", e.what_str());
           }
 
-	//output the contents of the retval to stdout
-	mkt::mkt_str rv = mkt::get_var("_");
-	std::cout << "_ <- {" << rv << "}" << endl;
-	mkt::ret_val(mkt::mkt_str());
+        //output the contents of the retval to stdout
+        mkt::mkt_str rv = mkt::get_var("_");
+        if(!rv.empty()) cout << rv << endl;
 
-	cmd_restore_prompt();
+        cmd_restore_prompt();
       }
 #else
     throw mkt::command_error("interactive mode unsupported");
@@ -182,14 +181,14 @@ namespace
               << endl;
           }
         
-	ss
+        ss
           << "\nUse the command \"help <command name>\" to get a description of each command" << endl;
       }
     else
       {
-	if(!mkt::has_command(local_args[0]))
-	  throw mkt::command_error("No such command " + local_args[0]);
-	ss << mkt::get_command_description(local_args[0]) << endl;
+        if(!mkt::has_command(local_args[0]))
+          throw mkt::command_error("No such command " + local_args[0]);
+        ss << mkt::get_command_description(local_args[0]) << endl;
       }
     
     mkt::ret_val(ss.str());
@@ -294,8 +293,8 @@ namespace mkt
     add_command("cmd", cmd, "starts an interactive command prompt.");
 #endif
     add_command("file", file,
-		"file <file path> - \n"
-		"Executes commands listed in a file, line by line sequentially.");
+                "file <file path> - \n"
+                "Executes commands listed in a file, line by line sequentially.");
     add_command("help", help, "Prints command list.");
     add_command("repeat", repeat, "repeat <num times> <command> -\nRepeat command.");
     add_command("serial", serial, "Execute commands serially separated by a 'then' keyword.");
@@ -327,7 +326,10 @@ namespace mkt
       unique_lock lock(cmds_lock());
       cmds()[name] = make_tuple(func, desc);
     }
-    command_added()(name);
+
+    if(!wait_for_threads::at_start() &&
+       !wait_for_threads::at_exit())
+      command_added()(name);
   }
 
   void remove_command(const mkt_str& name)
@@ -337,7 +339,10 @@ namespace mkt
       unique_lock lock(cmds_lock());
       cmds().erase(name);
     }
-    command_removed()(name);
+
+    if(!wait_for_threads::at_start() &&
+       !wait_for_threads::at_exit())
+      command_removed()(name);
   }
 
   argument_vector get_commands()
@@ -386,20 +391,10 @@ namespace mkt
       cmd = cmds()[cmd_str];
     }
 
-    // Finally call it, creating a thread local variable map context for it.
-    // After the command function is called, copy non-local variable changes
-    // from its variable scope one up the stack so changes to global variables
-    // can be propagated upward and visible to calling commands. Local variables
-    // to a command execution are those with names that begin with '_'. 
-    // '_' itself is a special variable reserved for use as a command return value.
-    // It is always propagated back up along with the non-local variables.
-    //push_vars();
-    //var("_", ""); //reset the return val for this stack frame
+    // Finally call it.
     command_pre_exec()(local_args, thread_key());
     cmd.get<0>()(local_args);
     command_post_exec()(local_args, thread_key());
-    //vars_copy(var_context(1));
-    //pop_vars();
   }
 
   void ex(const mkt_str& cmd, bool escape)
@@ -418,34 +413,34 @@ namespace mkt
     //handle escape codes in each argument in the vector
     if(escape)
       {
-	typedef boost::array<boost::array<string, 2>, 8> codes_array;
-	codes_array codes =
-	  {
-	    {
-	      {"\\n", "\n"},
-	      {"\\r", "\r"},
-	      {"\\t", "\t"},
-	      {"\\v", "\v"},
-	      {"\\b", "\b"},
-	      {"\\f", "\f"},
-	      {"\\a", "\a"},
-	      {"\\\\", "\\"},
-	    }
-	  };
-	BOOST_FOREACH(string& arg, args)
-	  {
-	    BOOST_FOREACH(codes_array::value_type& code_array, codes)
-	      {
-		replace_all(arg, code_array[0], code_array[1]);
-	      }
-	  }
+        typedef boost::array<boost::array<string, 2>, 8> codes_array;
+        codes_array codes =
+          {
+            {
+              {"\\n", "\n"},
+              {"\\r", "\r"},
+              {"\\t", "\t"},
+              {"\\v", "\v"},
+              {"\\b", "\b"},
+              {"\\f", "\f"},
+              {"\\a", "\a"},
+              {"\\\\", "\\"},
+            }
+          };
+        BOOST_FOREACH(string& arg, args)
+          {
+            BOOST_FOREACH(codes_array::value_type& code_array, codes)
+              {
+                replace_all(arg, code_array[0], code_array[1]);
+              }
+          }
       }
 
     mkt::exec(args);
   }
 
   void exec_file(const argument_vector& file_args, bool parallel,
-		 bool escape)
+                 bool escape)
   {
     using namespace std;
     using namespace boost;

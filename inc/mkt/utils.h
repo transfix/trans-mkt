@@ -50,7 +50,7 @@ namespace mkt
 }
 
 // Guard access to calling the signal to avoid bad 
-// stuff when triggering signals after main() returns.
+// stuff when triggering signals before or after main() returns.
 #define MKT_DEF_SIGNAL(sig_type, sig_name)                              \
   sig_type& sig_name()                                                  \
   {                                                                     \

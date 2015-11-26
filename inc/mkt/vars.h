@@ -195,6 +195,8 @@ namespace mkt
       set_var("_", val);
     }
 
+  //TODO: add functions to get variable type and access/mod time
+
   //Splits a string into an argument vector, taking into account
   //quote characters for argument values with spaces.
   argument_vector split(const mkt_str& args);

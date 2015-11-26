@@ -54,13 +54,23 @@ namespace
   {
     _modules_atexit = true;
 
+    if(!_modules_data)
+      throw mkt::modules_error("Missing static modules data!");
+
     //Expunge all loaded modules before deleting local static data. It is the module's modules
     //responsibility to call final functions of loaded modules.
-    //TODO: consider making a local static version of loaded_modules and expunge_module that
-    //don't touch the mutex.
-    mkt::argument_vector mods = mkt::loaded_modules();
-    BOOST_FOREACH(mkt::mkt_str& mod_name, mods)
-      mkt::expunge_module(mod_name);
+    BOOST_FOREACH(const module_map_t::value_type& cur, 
+		  _modules_data->_module_map)
+      {
+	const mkt::mkt_str& mod_name = cur.first;
+	const module_data& md = cur.second;
+	std::cout << "Unloading module " << mod_name << std::endl;
+	md.final();
+	if(::dlclose(md.h))
+	  std::cout << str(boost::format("Error closing module %1%: %2%\n")
+			   % mod_name
+			   % ::dlerror()) << std::endl;
+      }
 
     delete _modules_data;
     _modules_data = 0;
