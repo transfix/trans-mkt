@@ -29,9 +29,9 @@ namespace mkt
   >
   {
     inline variable_value(const any_ptr& p = any_ptr(), 
-			  const mkt_str& t = mkt_str(),
-			  const ptime& m = now(),
-			  const ptime& a = now())
+                          const mkt_str& t = mkt_str(),
+                          const ptime& m = now(),
+                          const ptime& a = now())
       : boost::tuple<any_ptr, mkt_str, ptime, ptime>(p,t,m,a) {}
     inline variable_value(const variable_value& vv)
       : boost::tuple<any_ptr, mkt_str, ptime, ptime>(vv) {}
@@ -44,28 +44,28 @@ namespace mkt
       //default to empty string for now
       if(!d_ptr) data(mkt_str());
       try
-	{
-	  // Try casting to string then doing a lexical cast.
-	  // If it is not a string then try casting directly.
-	  try
-	    {
-	      mkt_str val_s = boost::any_cast<mkt_str>(*d_ptr);
-	      val = string_cast<T>(val_s);
-	    }
-	  catch(boost::bad_any_cast&)
-	    {
-	      val = boost::any_cast<T>(*d_ptr);
-	    }
+        {
+          // Try casting to string then doing a lexical cast.
+          // If it is not a string then try casting directly.
+          try
+            {
+              mkt_str val_s = boost::any_cast<mkt_str>(*d_ptr);
+              val = string_cast<T>(val_s);
+            }
+          catch(boost::bad_any_cast&)
+            {
+              val = boost::any_cast<T>(*d_ptr);
+            }
 
-	  ptime& access_time = get<3>();
-	  access_time = now();
-	}
+          ptime& access_time = get<3>();
+          access_time = now();
+        }
       catch(boost::bad_any_cast&)
-	{
-	  throw mkt::vars_error(
-	    boost::str(boost::format("Error casting variable data to %1%.")
-		       % typeid(T).name()));
-	}
+        {
+          throw mkt::vars_error(
+            boost::str(boost::format("Error casting variable data to %1%.")
+                       % typeid(T).name()));
+        }
       return val;
     }
 
@@ -102,28 +102,28 @@ namespace mkt
   void final_vars();
 
   mkt_str get_var(const mkt_str& varname, 
-		  const mkt_str& t_key = thread_key());
+                  const mkt_str& t_key = thread_key());
   
   void set_var(const mkt_str& varname, const mkt_str& val,
-	       const mkt_str& t_key = thread_key());
+               const mkt_str& t_key = thread_key());
 
   void unset_var(const mkt_str& varname,
-		 const mkt_str& t_key = thread_key());
+                 const mkt_str& t_key = thread_key());
 
   bool has_var(const mkt_str& varname,
-	       const mkt_str& t_key = thread_key());
+               const mkt_str& t_key = thread_key());
 
   argument_vector list_vars(const mkt_str& t_key = thread_key());
 
   void vars_copy(const mkt_str& to_t_key,
-		 const mkt_str& from_t_key = thread_key(),
-		 bool no_locals = true,
-		 bool only_if_newer = true);
+                 const mkt_str& from_t_key = thread_key(),
+                 bool no_locals = true,
+                 bool only_if_newer = true);
 
   typedef boost::
     signals2::
     signal<void (const mkt_str& /* varname */, 
-		 const mkt_str& /* thread_key */)> 
+                 const mkt_str& /* thread_key */)> 
     var_change_signal;
   var_change_signal& var_changed();
   
@@ -142,8 +142,8 @@ namespace mkt
       catch(mkt::system_error&)
         {
           throw mkt::system_error(
-	    str(format("Invalid value type for variable %1%: %2%")
-		% varname % str_val));
+            str(format("Invalid value type for variable %1%: %2%")
+                % varname % str_val));
         }
       return val;
     }
@@ -160,8 +160,8 @@ namespace mkt
       catch(boost::bad_lexical_cast&)
         {
           throw mkt::system_error(
-	    boost::str(boost::format("Invalid value type for variable %1%: %2%")
-		       % varname % val));
+            boost::str(boost::format("Invalid value type for variable %1%: %2%")
+                       % varname % val));
         }
       set_var(varname, str_val);
     }

@@ -4,7 +4,7 @@
 #include <mkt/config.h>
 #include <mkt/types.h>
 
-#include <boost/scoped_ptr.hpp>
+#include <memory>
 
 namespace mkt
 {
@@ -27,8 +27,8 @@ namespace mkt
     void initialize();
     void finalize();
 
-    boost::scoped_ptr<wait_for_threads>  _w;
-    boost::scoped_ptr<thread_feedback>   _tf;
+    std::unique_ptr<wait_for_threads>  _w;
+    std::unique_ptr<thread_feedback>   _tf;
   };
 
   inline mkt_str version() { return mkt::app::version(); }

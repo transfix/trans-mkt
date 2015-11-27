@@ -14,7 +14,6 @@
 #endif
 
 #include <boost/cstdint.hpp>
-#include <boost/shared_ptr.hpp>
 #include <boost/utility.hpp>
 
 #include <iostream>
@@ -26,6 +25,7 @@
 #include <set>
 #include <algorithm>
 #include <limits>
+#include <memory>
 
 namespace xch
 {
@@ -142,7 +142,7 @@ namespace xch
     int64                                     _order_asset_id;
     int64                                     _payment_asset_id;
 
-    typedef boost::shared_ptr<order>          order_ptr;
+    typedef std::shared_ptr<order>            order_ptr;
     typedef std::multimap<ptime, order_ptr>   order_time_map;
     typedef order_time_map::value_type        order_time_pair;
     //map key is price == _cost / _volume
@@ -830,7 +830,7 @@ namespace xch
     _available_volume = av;
   }  
   
-  typedef boost::shared_ptr<market>   market_ptr;
+  typedef std::shared_ptr<market>     market_ptr;
   std::map<std::string, market_ptr>   _markets;
   mutex                               _markets_mutex;
 

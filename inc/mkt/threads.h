@@ -13,7 +13,7 @@ namespace mkt
   /*
    * Thread API
    */
-  typedef boost::shared_ptr<boost::thread>       thread_ptr;
+  typedef std::shared_ptr<boost::thread>         thread_ptr;
   typedef std::map<mkt_str, thread_ptr>          thread_map;
   typedef boost::thread::id                      thread_id;
   typedef std::map<thread_id, double>            thread_progress_map;
@@ -76,14 +76,14 @@ namespace mkt
   typedef boost::
     signals2::
     signal<void (const mkt_str& /* caller thread key */, 
-		 const mkt_str& /* this thread key */)> 
+                 const mkt_str& /* this thread key */)> 
     thread_call_signal;
   thread_call_signal& thread_initialized();
   thread_call_signal& thread_finalized();
   typedef boost::
     signals2::
     signal<void (const mkt_str& /* this thread key */, 
-		 const mkt_str& /* exception string */)> 
+                 const mkt_str& /* exception string */)> 
     thread_exception_signal;
   thread_exception_signal& thread_exception();
 
@@ -94,38 +94,38 @@ namespace mkt
     {
     public:
       init_thread(const T& t) : 
-	_t(t), _caller_thread_key(thread_key()) {}
+        _t(t), _caller_thread_key(thread_key()) {}
 
       class thread_signals
       {
       public:
-	thread_signals(const mkt_str& caller_key,
-		       const mkt_str& this_key)
-	  : _caller_key(caller_key), _this_key(this_key) 
-	  {
-	    thread_initialized()(_caller_key, _this_key);
-	  }
-	~thread_signals()
-	  {
-	    thread_finalized()(_caller_key, _this_key);
-	  }
+        thread_signals(const mkt_str& caller_key,
+                       const mkt_str& this_key)
+          : _caller_key(caller_key), _this_key(this_key) 
+          {
+            thread_initialized()(_caller_key, _this_key);
+          }
+        ~thread_signals()
+          {
+            thread_finalized()(_caller_key, _this_key);
+          }
       private:
-	mkt_str _caller_key;
-	mkt_str _this_key;
+        mkt_str _caller_key;
+        mkt_str _this_key;
       };
 
       void operator()()
       {
-	thread_signals ts(_caller_thread_key, thread_key());
+        thread_signals ts(_caller_thread_key, thread_key());
         try
           {
             thread_feedback tf(BOOST_CURRENT_FUNCTION);
-	    //TODO: copy vars from calling thread's var map to this one.
+            //TODO: copy vars from calling thread's var map to this one.
             _t();
           }
         catch(mkt::exception& e)
           {
-	    thread_exception()(thread_key(), e.what_str());
+            thread_exception()(thread_key(), e.what_str());
           }
       }
     private:

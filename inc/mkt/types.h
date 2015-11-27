@@ -8,11 +8,11 @@
 #include <boost/signals2.hpp>
 #include <boost/thread/locks.hpp>
 #include <boost/thread/shared_mutex.hpp>
-#include <boost/shared_ptr.hpp>
 #include <boost/any.hpp>
 
 #include <string>
 #include <vector>
+#include <memory>
 
 //basic types used by the system
 namespace mkt
@@ -24,12 +24,12 @@ namespace mkt
   typedef boost::unique_lock<mutex>      unique_lock;
   typedef boost::shared_lock<mutex>      shared_lock;
   typedef std::string                    mkt_str;
-  typedef boost::shared_ptr<mkt_str>     mkt_str_ptr;
+  typedef std::shared_ptr<mkt_str>       mkt_str_ptr;
   typedef std::vector<mkt_str>           argument_vector;
   typedef argument_vector                arg_vec; // shorthand
   typedef boost::signals2::signal<void (const mkt_str&)> map_change_signal;
   typedef boost::any                     any;
-  typedef boost::shared_ptr<any>         any_ptr;
+  typedef std::shared_ptr<any>           any_ptr;
 }
 
 #endif
