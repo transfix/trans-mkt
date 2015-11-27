@@ -2,7 +2,6 @@
 #include <mkt/app.h>
 #include <mkt/threads.h>
 #include <mkt/vars.h>
-//#include <mkt/echo.h>
 #include <mkt/utils.h>
 #include <mkt/log.h>
 #include <mkt/exceptions.h>
@@ -16,7 +15,6 @@
 #endif
 
 #include <boost/format.hpp>
-#include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/algorithm/string/replace.hpp>
@@ -232,7 +230,7 @@ namespace
     //split the argument vector into separate command strings via 'then' keywords
     vector<mkt::argument_vector> split_args;
     mkt::argument_vector cur_command;
-    BOOST_FOREACH(const string& cur, local_args)
+    for(auto&& cur : local_args)
       {
         if(cur != "then")
           cur_command.push_back(cur);
@@ -249,7 +247,7 @@ namespace
       throw mkt::command_error("Missing command to execute.");
     
     //now execute the split commands serially
-    BOOST_FOREACH(const mkt::argument_vector& cur, split_args)
+    for(auto&& cur : split_args)
       mkt::exec(cur);
   }
 
@@ -350,7 +348,7 @@ namespace mkt
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     shared_lock lock(cmds_lock());    
     argument_vector av;
-    BOOST_FOREACH(command_map::value_type& cur, cmds())
+    for(auto&& cur : cmds())
       av.push_back(cur.first);
     return av;
   }
@@ -378,7 +376,7 @@ namespace mkt
 
     //do variable expansion
     argument_vector local_args = args;
-    BOOST_FOREACH(mkt_str& arg, local_args)
+    for(auto&& arg : local_args)
       arg = expand_vars(arg);
 
     //get the command function
@@ -427,13 +425,9 @@ namespace mkt
               {"\\\\", "\\"},
             }
           };
-        BOOST_FOREACH(string& arg, args)
-          {
-            BOOST_FOREACH(codes_array::value_type& code_array, codes)
-              {
-                replace_all(arg, code_array[0], code_array[1]);
-              }
-          }
+        for(auto&& arg : args)
+          for(auto&& code_array : codes)
+            replace_all(arg, code_array[0], code_array[1]);
       }
 
     mkt::exec(args);

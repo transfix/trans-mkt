@@ -13,7 +13,6 @@
 #endif
 #endif
 
-#include <boost/foreach.hpp>
 #include <boost/cstdint.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/utility.hpp>
@@ -39,12 +38,12 @@ namespace xch
   public:
     enum order_type
       {
-	INVALID_ORDER, ASK, BID
+        INVALID_ORDER, ASK, BID
       };
 
     market(int64 oaid = -1, int64 paid = -1);
     int64 add_order(order_type ot, int64 account_id, 
-		    double volume, double cost);
+                    double volume, double cost);
     void cancel_order(int64 order_id);
     std::set<int64> get_open_order_ids();
     std::set<int64> get_closed_order_ids();
@@ -87,7 +86,7 @@ namespace xch
       order();
       order(const order& rhs);
       order(order_type ot, int64 acct_id, 
-	    double volume, double cost);
+            double volume, double cost);
       order& operator=(const order& rhs);
 
       //if the close time is set, consider it closed
@@ -164,9 +163,9 @@ namespace xch
     struct cmp_order
     {
       bool operator()(const order_map::value_type& left, 
-		      const order_map::value_type& right) const
+                      const order_map::value_type& right) const
       {
-	return left.first < right.first;
+        return left.first < right.first;
       }
     };
 #endif
@@ -189,7 +188,7 @@ namespace xch
   }
   
   int64 market::add_order(order_type ot, int64 account_id, 
-			  double volume, double cost)
+                          double volume, double cost)
   {
     order_ptr optr(new order(ot, account_id, volume, cost));
     double price = optr->price();
@@ -198,17 +197,17 @@ namespace xch
     {
       unique_lock lock(_mutex);
       switch(ot)
-	{
-	case ASK: 
-	  _ask_orderbook[price].insert(order_time_pair(optr->open_time(), optr));
-	  _orders[order_id] = optr;
-	  break;
-	case BID: 
-	  _bid_orderbook[price].insert(order_time_pair(optr->open_time(), optr));
-	  _orders[order_id] = optr;
-	  break;
-	default: throw market_error("invalid order_type");
-	}
+        {
+        case ASK: 
+          _ask_orderbook[price].insert(order_time_pair(optr->open_time(), optr));
+          _orders[order_id] = optr;
+          break;
+        case BID: 
+          _bid_orderbook[price].insert(order_time_pair(optr->open_time(), optr));
+          _orders[order_id] = optr;
+          break;
+        default: throw market_error("invalid order_type");
+        }
     }
     resolve_orderbook();
     orderbook_changed();
@@ -224,12 +223,12 @@ namespace xch
     {
       unique_lock lock(_mutex);
       if(_orders.find(order_id) == _orders.end())
-	throw market_error(str(format("unknown order %1%")
-			       % order_id));
+        throw market_error(str(format("unknown order %1%")
+                               % order_id));
       o = _orders[order_id];
       if(!o)
-	throw market_error(str(format("invalid order %1%")
-			       % order_id));
+        throw market_error(str(format("invalid order %1%")
+                               % order_id));
     }
 
     return o;
@@ -246,14 +245,14 @@ namespace xch
       order_ptr optr = _orders[order_id];
       if(!optr)
         throw market_error(str(format("invalid order %1%")
-			       % order_id));
+                               % order_id));
       optr->close();
       order_type ot = optr->get_order_type();
       ptime cur_time = optr->close_time();
       double price = optr->price();
       switch(ot)
-	{
-	case ASK:
+        {
+        case ASK:
           {
             _removed_orders.insert(order_time_map::value_type(cur_time, optr));
             
@@ -271,8 +270,8 @@ namespace xch
             
             _orders.erase(order_id);
           }
-	  break;
-	case BID:
+          break;
+        case BID:
           {
             _removed_orders.insert(order_time_map::value_type(cur_time, optr));
             
@@ -290,11 +289,11 @@ namespace xch
             
             _orders.erase(order_id);
           }
-	  break;
-	default: 
-	  throw market_error(str(format("invalid order_type in order %1%")
-				 % order_id));
-	}
+          break;
+        default: 
+          throw market_error(str(format("invalid order_type in order %1%")
+                                 % order_id));
+        }
     }
     orderbook_changed();
     order_removed(order_id);
@@ -307,17 +306,16 @@ namespace xch
     //collect cancelled order ids
     {
       unique_lock lock(_mutex);
-      BOOST_FOREACH(order_id_map::value_type& cur,
-		    _orders)
-	{
-	  order_ptr optr = cur.second;
+      for(auto&& cur : _orders)
+        {
+          order_ptr optr = cur.second;
           if(optr && optr->closed())
-	    cancelled_order_ids.insert(optr->order_id());
-	}
+            cancelled_order_ids.insert(optr->order_id());
+        }
     }
     
     //now remove each one
-    BOOST_FOREACH(int64 order_id, cancelled_order_ids)
+    for(auto&& order_id : cancelled_order_ids)
       remove_order(order_id);
   }
 
@@ -327,12 +325,12 @@ namespace xch
     {
       unique_lock lock(_mutex);
       if(_orders.find(order_id) == _orders.end())
-	throw market_error(str(format("unknown order %1%")
-			       % order_id));
+        throw market_error(str(format("unknown order %1%")
+                               % order_id));
       order_ptr optr = _orders[order_id];
       if(!optr)
-	throw market_error(str(format("invalid order %1%")
-			       % order_id));
+        throw market_error(str(format("invalid order %1%")
+                               % order_id));
       optr->close();      
     }
     orderbook_changed();
@@ -343,8 +341,7 @@ namespace xch
     std::set<int64> order_ids;
     {
       unique_lock lock(_mutex);
-      BOOST_FOREACH(order_id_map::value_type& cur,
-		    _orders)
+      for(auto&& cur : _orders)
         {
           order_ptr optr = cur.second;
           if(optr && !optr->closed())
@@ -359,8 +356,7 @@ namespace xch
     std::set<int64> order_ids;
     {
       unique_lock lock(_mutex);
-      BOOST_FOREACH(order_id_map::value_type& cur,
-		    _orders)
+      for(auto&& cur : _orders)
         {
           order_ptr optr = cur.second;
           if(optr && optr->closed())
@@ -375,8 +371,7 @@ namespace xch
     std::set<int64> order_ids;
     {
       unique_lock lock(_mutex);
-      BOOST_FOREACH(order_id_map::value_type& cur,
-		    _orders)
+      for(auto&& cur : _orders)
         if(cur.second)
           order_ids.insert(cur.second->order_id());
     }
@@ -507,9 +502,9 @@ namespace xch
  
     do
       {
-	bool all_closed = false;
+        bool all_closed = false;
 
-	orderbook_map::iterator min_ask_iter;
+        orderbook_map::iterator min_ask_iter;
 
         {
           unique_lock lock(_mutex);
@@ -522,127 +517,127 @@ namespace xch
 
         //TODO: FINISH ME!!!!
 
-	//find first non closed ask order
-	do
-	  {
+        //find first non closed ask order
+        do
+          {
             min_ask_price = min_ask_iter->first;
             order_time_map& otr = min_ask_iter->second;
             order_time_map::iterator otr_first = otr.begin();
-	    min_ask_ptr = otr_first != otr.end() ?
+            min_ask_ptr = otr_first != otr.end() ?
               otr_first->second : order_ptr();
 
-	    if(!min_ask_ptr ||
-	       min_ask_ptr->closed())
-	      ++min_ask_iter;
-	    if(min_ask_iter == _ask_orderbook.end())
-	      {
-		all_closed = true;
-		break;
-	      }
-	  }
-	while(min_ask_ptr->closed());
-	  
-	//nothing to do if all ask orders have been closed
-	if(all_closed) break;
-	  
-	orderbook_map::reverse_iterator max_bid_iter =
-	  _bid_orderbook.rbegin();
-	  
-	//nothing to do if no bid orders
-	if(max_bid_iter == _bid_orderbook.rend())
-	  break;
+            if(!min_ask_ptr ||
+               min_ask_ptr->closed())
+              ++min_ask_iter;
+            if(min_ask_iter == _ask_orderbook.end())
+              {
+                all_closed = true;
+                break;
+              }
+          }
+        while(min_ask_ptr->closed());
+          
+        //nothing to do if all ask orders have been closed
+        if(all_closed) break;
+          
+        orderbook_map::reverse_iterator max_bid_iter =
+          _bid_orderbook.rbegin();
+          
+        //nothing to do if no bid orders
+        if(max_bid_iter == _bid_orderbook.rend())
+          break;
 
-	//find first non closed bid order
-	do
-	  {
-	    max_bid_price = max_bid_iter->first;
+        //find first non closed bid order
+        do
+          {
+            max_bid_price = max_bid_iter->first;
             order_time_map& otr = max_bid_iter->second;
             order_time_map::iterator otr_first = otr.begin();
-	    max_bid_ptr   = otr_first != otr.end() ? 
+            max_bid_ptr   = otr_first != otr.end() ? 
               otr_first->second : order_ptr();
 
-	    if(!max_bid_ptr ||
-	       max_bid_ptr->closed())
-	      ++max_bid_iter;
-	    if(max_bid_iter == _bid_orderbook.rend())
-	      {
-		all_closed = true;
-		break;
-	      }
-	  }
-	while(max_bid_ptr->closed());
-	  
-	//nothing to do if all bid orders have been closed
-	if(all_closed) break;
+            if(!max_bid_ptr ||
+               max_bid_ptr->closed())
+              ++max_bid_iter;
+            if(max_bid_iter == _bid_orderbook.rend())
+              {
+                all_closed = true;
+                break;
+              }
+          }
+        while(max_bid_ptr->closed());
+          
+        //nothing to do if all bid orders have been closed
+        if(all_closed) break;
 
-	if(!min_ask_ptr)
-	  throw market_error("null ask order in orderbook");
-	if(!max_bid_ptr)
-	  throw market_error("null bid order in orderbook");
+        if(!min_ask_ptr)
+          throw market_error("null ask order in orderbook");
+        if(!max_bid_ptr)
+          throw market_error("null bid order in orderbook");
 
-	//nothing to do if there is a spread
-	if(min_ask_price > max_bid_price)
-	  break;
+        //nothing to do if there is a spread
+        if(min_ask_price > max_bid_price)
+          break;
 
-	double ask_available = min_ask_ptr->available_volume();
-	double bid_available = max_bid_ptr->available_volume();
+        double ask_available = min_ask_ptr->available_volume();
+        double bid_available = max_bid_ptr->available_volume();
 
-	double new_bid_available =
-	  std::min(bid_available + ask_available, max_bid_ptr->volume());
-	double dv = new_bid_available - bid_available; //amount consumed by the bid
-	double new_ask_available = 
-	  std::max(ask_available - dv, 0.0);
-	  
-	min_ask_ptr->available_volume(new_ask_available);
-	max_bid_ptr->available_volume(new_bid_available);
+        double new_bid_available =
+          std::min(bid_available + ask_available, max_bid_ptr->volume());
+        double dv = new_bid_available - bid_available; //amount consumed by the bid
+        double new_ask_available = 
+          std::max(ask_available - dv, 0.0);
+          
+        min_ask_ptr->available_volume(new_ask_available);
+        max_bid_ptr->available_volume(new_bid_available);
 
-	//close the ask or bid order if they are filled up to a certain epsilon
-	const double epsilon = 0.001; //TODO: use system var for epsilon
-	if(new_ask_available < epsilon)
-	  min_ask_ptr->close(true);
-	if(max_bid_ptr->volume() - new_bid_available < epsilon)
-	  max_bid_ptr->close(true);
-	  
-	order_ptr oldest_ptr = 
-	  min_ask_ptr->open_time() < max_bid_ptr->open_time() ?
-	  min_ask_ptr : max_bid_ptr;
+        //close the ask or bid order if they are filled up to a certain epsilon
+        const double epsilon = 0.001; //TODO: use system var for epsilon
+        if(new_ask_available < epsilon)
+          min_ask_ptr->close(true);
+        if(max_bid_ptr->volume() - new_bid_available < epsilon)
+          max_bid_ptr->close(true);
+          
+        order_ptr oldest_ptr = 
+          min_ask_ptr->open_time() < max_bid_ptr->open_time() ?
+          min_ask_ptr : max_bid_ptr;
 
-	double exec_price = oldest_ptr->price();
-	double dv_cost = dv * exec_price;
+        double exec_price = oldest_ptr->price();
+        double dv_cost = dv * exec_price;
 
-	double dv_fee = dv * (_bid_fee / 100.0);
-	double dv_cost_fee = dv_cost * (_ask_fee / 100.0);
+        double dv_fee = dv * (_bid_fee / 100.0);
+        double dv_cost_fee = dv_cost * (_ask_fee / 100.0);
 
-	//subtract the fee from both sides
-	dv -= dv_fee;
-	dv_cost -= dv_cost_fee;
+        //subtract the fee from both sides
+        dv -= dv_fee;
+        dv_cost -= dv_cost_fee;
 
-	//finally execute the exchange
-	//TODO: add this to a queue and process later (maybe in another thread)
+        //finally execute the exchange
+        //TODO: add this to a queue and process later (maybe in another thread)
 
-	//fees
-	exec_transaction(_account_id,
-			 max_bid_ptr->account_id(),
-			 _payment_asset_id,
-			 dv_cost_fee);
-	exec_transaction(_account_id,
-			 min_ask_ptr->account_id(),
-			 _order_asset_id,
-			 dv_fee);
-	//actual transaction
-	exec_transaction(min_ask_ptr->account_id(),
-			 max_bid_ptr->account_id(),
-			 _payment_asset_id,
-			 dv_cost);
-	exec_transaction(max_bid_ptr->account_id(),
-			 min_ask_ptr->account_id(),
-			 _order_asset_id,
-			 dv);
+        //fees
+        exec_transaction(_account_id,
+                         max_bid_ptr->account_id(),
+                         _payment_asset_id,
+                         dv_cost_fee);
+        exec_transaction(_account_id,
+                         min_ask_ptr->account_id(),
+                         _order_asset_id,
+                         dv_fee);
+        //actual transaction
+        exec_transaction(min_ask_ptr->account_id(),
+                         max_bid_ptr->account_id(),
+                         _payment_asset_id,
+                         dv_cost);
+        exec_transaction(max_bid_ptr->account_id(),
+                         min_ask_ptr->account_id(),
+                         _order_asset_id,
+                         dv);
 
-	//send a signal about the trade
-	trade_executed(exec_price, dv);
+        //send a signal about the trade
+        trade_executed(exec_price, dv);
 
-	//TODO: market history transaction log
+        //TODO: market history transaction log
       }
     while(min_ask_price <= max_bid_price);
   }
@@ -659,7 +654,7 @@ namespace xch
   {
     std::set<int64> order_ids =
       get_order_ids();
-    BOOST_FOREACH(int64 order_id, order_ids)
+    for(auto&& order_id : order_ids)
       remove_order(order_id);
     {
       unique_lock lock(_mutex);
@@ -684,7 +679,7 @@ namespace xch
       _available_volume(rhs._available_volume) {}
 
   market::order::order(order_type ot, int64 acct_id, 
-		       double volume, double cost)
+                       double volume, double cost)
     : _order_type(ot), _order_id(get_next_order_id()),
       _account_id(acct_id),
       _open_time(boost::posix_time::microsec_clock::universal_time()),
@@ -722,14 +717,14 @@ namespace xch
 
       //if filled flag set, mark order as fully filled
       if(filled)
-	{
-	  if(_order_type == ASK)
-	    _available_volume = 0.0;
-	  else if(_order_type == BID)
-	    _available_volume = _volume;
-	}
+        {
+          if(_order_type == ASK)
+            _available_volume = 0.0;
+          else if(_order_type == BID)
+            _available_volume = _volume;
+        }
       _close_time =
-	boost::posix_time::microsec_clock::universal_time();
+        boost::posix_time::microsec_clock::universal_time();
     }
   }
 
@@ -885,12 +880,12 @@ void print_accounts()
 {
   std::vector<mkt::int64> account_ids = xch::get_account_ids();
   std::vector<std::string> asset_names = xch::get_asset_names();
-  BOOST_FOREACH(mkt::int64 id, account_ids)
+  for(auto&& id : account_ids)
     {
       std::cout << "id: " << id << std::endl;
-      BOOST_FOREACH(std::string& asset_name, asset_names)
-	std::cout << "\tasset: " << asset_name << " " << "balance: " 
-		  << xch::balance(id, xch::get_asset_id(asset_name)) << std::endl;
+      for(auto&& asset_name : asset_names)
+        std::cout << "\tasset: " << asset_name << " " << "balance: " 
+                  << xch::balance(id, xch::get_asset_id(asset_name)) << std::endl;
     }
 }
 
@@ -912,13 +907,13 @@ int main(int argc, char **argv)
 #if 0
   //init accounts with some random balance
   std::vector<mkt::int64> account_ids = xch::get_account_ids();
-  BOOST_FOREACH(mkt::int64 id, account_ids)
+  for(auto&& id : account_ids)
     xch::exec_transaction(id, -1, mkt::get_asset_id("XBT"), (rand() % 666)/333.0);
   print_accounts();
 
   xch::exec_transaction(account_ids[0], account_ids[1], 
-				  mkt::get_asset_id("XBT"), 
-				  xch::balance(account_ids[1], mkt::get_asset_id("XBT")));
+                                  mkt::get_asset_id("XBT"), 
+                                  xch::balance(account_ids[1], mkt::get_asset_id("XBT")));
   print_accounts();
 #endif
   std::vector<mkt::int64> account_ids = xch::get_account_ids();

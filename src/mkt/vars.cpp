@@ -11,13 +11,13 @@
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/regex.hpp>
 #include <boost/array.hpp>
-#include <boost/foreach.hpp>
 #include <boost/program_options.hpp>
 
 #include <boost/program_options/parsers.hpp>
 #include <cctype>
 
 #include <sstream>
+#include <algorithm>
 
 //split_winmain is ifdef'ed out on Linux, so lets just add it here.
 namespace
@@ -143,47 +143,45 @@ namespace
 
   // duplicates the requested variable map
   mkt::variable_map var_copy_map(const mkt::mkt_str& key = mkt::thread_key(),
-				 bool no_locals = true)
+                                 bool no_locals = true)
   {
     mkt::variable_map vm = var_map_ref(key);
 
     if(no_locals)
       {
-	//collect the local var names from the current stack frame
-	std::set<mkt::mkt_str> local_vars;
-	BOOST_FOREACH(const mkt::variable_map::value_type& cur, vm)
-	  {
-	    if(cur.first[0]=='_')
-	      local_vars.insert(cur.first);
-	  }
-	
-	//now remove them from the variable map copy
-	BOOST_FOREACH(const mkt::mkt_str& var_name, local_vars)
-	  vm.erase(var_name);
+        //collect the local var names from the current var map
+        std::set<mkt::mkt_str> local_vars;
+        for(auto&& cur : vm) 
+          if(cur.first[0]=='_')
+            local_vars.insert(cur.first);
+        
+        //now remove them from the variable map copy
+        for(auto&& var_name : local_vars)
+          vm.erase(var_name);
       }
 
     return vm;
   }
 
-  // copies the map at the specified from_context to the one at to_context
+  // copies the map at the specified from_key to the one at to_key
   void var_copy_map(const mkt::mkt_str& to_key,
-		    const mkt::mkt_str& from_key,
-		    bool no_locals = true,
-		    bool only_if_newer = true)
+                    const mkt::mkt_str& from_key,
+                    bool no_locals = true,
+                    bool only_if_newer = true)
   {
     mkt::variable_map from_map = var_copy_map(from_key, no_locals);
     mkt::variable_map& to_map = var_map_ref(to_key);
 
-    BOOST_FOREACH(mkt::variable_map::value_type& cur, from_map)
+    for(auto&& cur : from_map)
       {
-	mkt::variable_value& from_val = cur.second;
-	if(only_if_newer && to_map.find(cur.first) != to_map.end())
-	  {
-	    mkt::variable_value& to_val = to_map[cur.first];
-	    if(to_val.mod_time() > from_val.mod_time())
-	      continue;
-	  }
-	to_map[cur.first] = from_val;
+        mkt::variable_value& from_val = cur.second;
+        if(only_if_newer && to_map.find(cur.first) != to_map.end())
+          {
+            mkt::variable_value& to_val = to_map[cur.first];
+            if(to_val.mod_time() > from_val.mod_time())
+              continue;
+          }
+        to_map[cur.first] = from_val;
       }
   }
 
@@ -219,15 +217,13 @@ namespace
     if(args.size() == 1)
       {
         mkt::argument_vector vars = mkt::list_vars();
-	std::stringstream ss;
-	// TODO: commands to read var attributes
-        BOOST_FOREACH(const mkt::mkt_str& cur_var, vars)
-          {
-            ss << "set " << cur_var 
-	       << " \"" << mkt::get_var(cur_var) << "\"" << std::endl;
-          }
-	mkt::ret_val(ss.str());
-	return;
+        std::stringstream ss;
+        // TODO: commands to read var attributes
+        for(auto&& cur_var : vars)
+          ss << "set " << cur_var 
+             << " \"" << mkt::get_var(cur_var) << "\"" << std::endl;
+        mkt::ret_val(ss.str());
+        return;
       }
     else if(args.size() == 2)
       mkt::set_var(args[1], mkt::mkt_str("")); //create an empty variable
@@ -272,14 +268,14 @@ namespace mkt
 
   // copy vars from caller thread to new thread on init
   void vars_copy_on_thread_init(const mkt_str& caller_key,
-				const mkt_str& this_key)
+                                const mkt_str& this_key)
   {
     vars_copy(this_key, caller_key);
   }
 
   // copy vars from new thread to caller thread on finalize
   void vars_copy_on_thread_final(const mkt_str& caller_key,
-				 const mkt_str& this_key)
+                                 const mkt_str& this_key)
   {
     vars_copy(caller_key, this_key);
   }
@@ -292,7 +288,7 @@ namespace mkt
     add_command("get", ::get, "get <varname>\nReturns the contents of a variable.");
     add_command("has_var", ::has_var, "Returns true or false whether the variable exists or not.");
     add_command("set", ::set, "set [<varname> <value>]\n"
-		"Sets a variable to the value specified.  If none, prints all variables in the system.");
+                "Sets a variable to the value specified.  If none, prints all variables in the system.");
     add_command("unset", ::unset, "unset <varname>\nRemoves a variable from the system.");
 
     thread_initialized().connect(vars_copy_on_thread_init);
@@ -314,7 +310,7 @@ namespace mkt
   }
 
   mkt_str get_var(const mkt_str& varname,
-		  const mkt_str& t_key)
+                  const mkt_str& t_key)
   {
     thread_info ti(BOOST_CURRENT_FUNCTION);
     bool creating = false;
@@ -333,7 +329,7 @@ namespace mkt
   }
 
   void set_var(const mkt_str& varname, const mkt_str& val,
-	       const mkt_str& t_key)
+               const mkt_str& t_key)
   {
     using namespace boost::algorithm;
     thread_info ti(BOOST_CURRENT_FUNCTION);
@@ -345,14 +341,14 @@ namespace mkt
       mkt_str local_val(val);
       variable_map& vm = var_map_ref(t_key);
       if(vm.find(local_varname) != vm.end() &&
-	 vm[local_varname].data() == local_val) return; //nothing to do
+         vm[local_varname].data() == local_val) return; //nothing to do
       vm[local_varname].data(local_val);
     }
     var_changed()(varname, t_key);
   }
 
   void unset_var(const mkt_str& varname,
-		 const mkt_str& t_key)
+                 const mkt_str& t_key)
   {
     using namespace boost::algorithm;
     thread_info ti(BOOST_CURRENT_FUNCTION);
@@ -365,7 +361,7 @@ namespace mkt
   }
 
   bool has_var(const mkt_str& varname,
-	       const mkt_str& t_key)
+               const mkt_str& t_key)
   {
     using namespace boost::algorithm;
     unique_lock lock(var_map_mutex_ref());
@@ -383,7 +379,7 @@ namespace mkt
     thread_info ti(BOOST_CURRENT_FUNCTION);
     argument_vector vars;
     variable_map& vm = var_map_ref(t_key);
-    BOOST_FOREACH(const variable_map::value_type& cur, vm)
+    for(auto&& cur : vm)
       {
         mkt_str cur_varname = cur.first;
         boost::algorithm::trim(cur_varname);
@@ -393,9 +389,9 @@ namespace mkt
   }
 
   void vars_copy(const mkt_str& to_t_key,
-		 const mkt_str& from_t_key,
-		 bool no_locals,
-		 bool only_if_newer)
+                 const mkt_str& from_t_key,
+                 bool no_locals,
+                 bool only_if_newer)
   {
     unique_lock lock(var_map_mutex_ref());
     thread_info ti(BOOST_CURRENT_FUNCTION);
@@ -432,7 +428,7 @@ namespace mkt
     do
       {
         found = false;
-        BOOST_FOREACH(regex& expr, exprs)
+        for(auto&& expr : exprs)
           {
             match_results<string::iterator> what;
             match_flag_type flags = match_default;

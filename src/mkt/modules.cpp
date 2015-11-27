@@ -5,7 +5,6 @@
 #include <mkt/utils.h>
 
 #include <boost/filesystem.hpp>
-#include <boost/foreach.hpp>
 #include <boost/format.hpp>
 #include <boost/function.hpp>
 #include <boost/algorithm/string/split.hpp>
@@ -59,8 +58,7 @@ namespace
 
     //Expunge all loaded modules before deleting local static data. It is the module's modules
     //responsibility to call final functions of loaded modules.
-    BOOST_FOREACH(const module_map_t::value_type& cur, 
-		  _modules_data->_module_map)
+    for(auto&& cur : _modules_data->_module_map)
       {
 	const mkt::mkt_str& mod_name = cur.first;
 	const module_data& md = cur.second;
@@ -207,7 +205,7 @@ namespace mkt
     path module_path;
     bool found = false;
     argument_vector searched_paths;
-    BOOST_FOREACH(mkt_str& cur_path, paths)
+    for(auto&& cur_path : paths)
       {
 	trim(cur_path);
 	path p(cur_path);
@@ -221,7 +219,7 @@ namespace mkt
 	    mod_name
 	  };
 
-	BOOST_FOREACH(mkt_str& mod_filename, mod_filenames)
+	for(auto&& mod_filename : mod_filenames)
 	  {
 	    module_path = p / mod_filename;
 	    searched_paths.push_back(mkt_str(module_path.c_str()));
@@ -298,11 +296,8 @@ namespace mkt
 
     {
       unique_lock lock(modules_mutex());
-      BOOST_FOREACH(const module_map_t::value_type& cur, 
-		    module_map())
-	{
-	  av.push_back(cur.first);
-	}
+      for(auto&& cur : module_map())
+	av.push_back(cur.first);
     }
 
     return av;

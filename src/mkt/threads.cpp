@@ -6,7 +6,6 @@
 #include <mkt/vars.h>
 #include <mkt/utils.h>
 
-#include <boost/foreach.hpp>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/regex.hpp>
 #include <boost/format.hpp>
@@ -96,11 +95,11 @@ namespace
     thread_keys_ref().clear();
 
     std::set<thread_id> infoIds;
-    BOOST_FOREACH(thread_info_map::value_type val, thread_info_ref())
+    for(auto&& val : thread_info_ref())
       infoIds.insert(val.first);
 
     std::set<thread_id> currentIds;
-    BOOST_FOREACH(thread_map::value_type val, threads_ref())
+    for(auto&& val : threads_ref())
       {
         thread_ptr ptr = val.second;
         if(ptr)
@@ -111,7 +110,7 @@ namespace
             if(thread_info_ref()[ptr->get_id()].empty())
               thread_info_ref()[ptr->get_id()] = "running";
 
-	    currentIds.insert(ptr->get_id());
+            currentIds.insert(ptr->get_id());
           }
       }
 
@@ -121,7 +120,7 @@ namespace
                    currentIds.begin(), currentIds.end(),
                    inserter(infoIdsToRemove,infoIdsToRemove.begin()));
 
-    BOOST_FOREACH(thread_id tid, infoIdsToRemove)
+    for(auto&& tid : infoIdsToRemove)
       thread_info_ref().erase(tid);
 
     // set id -> key mapping and thread info for main_thread
@@ -182,7 +181,7 @@ namespace
     //split the argument vector into separate command strings via 'and' keywords
     vector<mkt::argument_vector> split_args;
     mkt::argument_vector cur_command;
-    BOOST_FOREACH(const string& cur, local_args)
+    for(auto&& cur : local_args)
       {
         if(cur != "and")
           cur_command.push_back(cur);
@@ -199,11 +198,11 @@ namespace
       throw mkt::command_error("Missing command to execute.");
     
     //now execute the split commands in parallel
-    BOOST_FOREACH(const mkt::argument_vector& cur, split_args)
+    for(auto&& cur : split_args)
       {
         mkt::argument_vector local_cur = cur;
         local_cur.insert(local_cur.begin(), "async");
-	mkt::exec(local_cur);
+        mkt::exec(local_cur);
       }
   }
 
@@ -240,11 +239,11 @@ namespace
 
     // get number of active threads
     size_t t_count = 0;
-    BOOST_FOREACH(const mkt::thread_map::value_type& cur, tm)
+    for(auto&& cur : tm)
       if(cur.second) t_count++;
 
     size_t t_cur = 0;
-    BOOST_FOREACH(const mkt::thread_map::value_type& cur, tm)
+    for(auto&& cur : tm)
       if(cur.second)
         {
           string ti = mkt::get_thread_info(cur.first);
@@ -263,14 +262,14 @@ namespace
               catch(...){}
             }
 
-	  ss << (t_cur==0?"\n":"")
-	     << boost::str(boost::format("{%1%} {%2%} {%3%}")
-			   % cur.first
-			   % cur.second->get_id()
-			   % ti)
-	     << (t_count>1?",\n":"");
+          ss << (t_cur==0?"\n":"")
+             << boost::str(boost::format("{%1%} {%2%} {%3%}")
+                           % cur.first
+                           % cur.second->get_id()
+                           % ti)
+             << (t_count>1?",\n":"");
 
-	  t_cur++;
+          t_cur++;
         }
 
     mkt::ret_val(ss.str());
@@ -301,14 +300,14 @@ namespace mkt
   void init_threads()
   {
     add_command("async", ::async,
-		"Executes a command in another thread and"
-		" returns immediately. If 'wait' is before\n"
-		"the command, this command will execute only after"
-		" a command with the same thread name is finished running.");
+                "Executes a command in another thread and"
+                " returns immediately. If 'wait' is before\n"
+                "the command, this command will execute only after"
+                " a command with the same thread name is finished running.");
     add_command("async_file", ::async_file,
-		"Executes commands listed in a file in parallel.");
+                "Executes commands listed in a file in parallel.");
     add_command("parallel", ::parallel,
-		"Executes a series of commands in parallel, separated by an 'and' keyword.");
+                "Executes a series of commands in parallel, separated by an 'and' keyword.");
     add_command("interrupt", ::interrupt, "Interrupts a running thread.");
     add_command("threads", ::list_threads, "Lists running threads by name.");
     add_command("sleep", sleep_cmd, "sleep <milliseconds>\nSleep for the time specified.");
@@ -328,7 +327,7 @@ namespace mkt
     
     // remove threads, interrupting them
     arg_vec t_keys = thread_keys();
-    BOOST_FOREACH(const mkt_str& key, t_keys)
+    for(auto&& key : t_keys)
       remove_thread(key);
 
     // remove entry for main_thread
@@ -367,8 +366,8 @@ namespace mkt
 
     if(has_thread(key) && threads(key))
       {
-	std::cout << BOOST_CURRENT_FUNCTION << ": interrupting " << key << std::endl;
-	threads(key)->interrupt();
+        std::cout << BOOST_CURRENT_FUNCTION << ": interrupting " << key << std::endl;
+        threads(key)->interrupt();
       }
 
     {
@@ -389,8 +388,8 @@ namespace mkt
     {
       unique_lock lock(threads_mutex_ref());
       
-      BOOST_FOREACH(thread_map::value_type t, threads_ref())
-	if(t.second) t.second->interrupt();
+      for(auto&& t : threads_ref())
+        if(t.second) t.second->interrupt();
       
       threads_ref() = map;
       thread_progress_ref().clear();
@@ -401,7 +400,7 @@ namespace mkt
     t_keys = thread_keys();
     t_keys_set.insert(t_keys.begin(), t_keys.end());
 
-    BOOST_FOREACH(const mkt_str& key, t_keys_set)
+    for(auto&& key : t_keys_set)
       threads_changed()(key);
   }
 
@@ -513,8 +512,8 @@ namespace mkt
     arg_vec ret_val;
     {
       unique_lock lock(threads_mutex_ref());
-      BOOST_FOREACH(thread_map::value_type& t, threads_ref())
-	ret_val.push_back(t.first);
+      for(auto&& t : threads_ref())
+        ret_val.push_back(t.first);
     }
     return ret_val;
   }
@@ -525,8 +524,8 @@ namespace mkt
 
     if(do_interrupt && has_thread(key) && threads(key))
       {
-	std::cout << BOOST_CURRENT_FUNCTION << ": interrupting " << key << std::endl;
-	threads(key)->interrupt();
+        std::cout << BOOST_CURRENT_FUNCTION << ": interrupting " << key << std::endl;
+        threads(key)->interrupt();
       }
 
     {
@@ -546,9 +545,9 @@ namespace mkt
     unsigned int i = 1;
     while(has_thread(uniqueThreadKey))
       uniqueThreadKey = h + 
-	"__" + 
-	boost::lexical_cast<mkt_str>(i++) +
-	"__";
+        "__" + 
+        boost::lexical_cast<mkt_str>(i++) +
+        "__";
     return uniqueThreadKey;
   }
 
@@ -652,7 +651,7 @@ namespace mkt
   {
     //Wait for all the threads to finish
     mkt::thread_map map = mkt::threads();
-    BOOST_FOREACH(mkt::thread_map::value_type val, map)
+    for(auto&& val : map)
       {
         try
           {

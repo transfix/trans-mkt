@@ -141,10 +141,11 @@ namespace mkt
     const mkt_str echo_functions_varname("sys_echo_functions");
     mkt_str echo_functions_value = get_var(echo_functions_varname);
     mkt::argument_vector echo_functions_strings;
-    split(echo_functions_strings, echo_functions_value, is_any_of(","), token_compress_on);
+    split(echo_functions_strings, echo_functions_value, 
+          is_any_of(","), token_compress_on);
 
     //execute each echo function
-    BOOST_FOREACH(mkt_str& echo_function_id_string, echo_functions_strings)
+    for(auto&& echo_function_id_string : echo_functions_strings)
       {
         trim(echo_function_id_string);
         if(echo_function_id_string.empty()) continue;
@@ -173,7 +174,7 @@ namespace mkt
     {
       unique_lock lock(echo_map_mutex_ref());
       if(echo_map_ref()[echo_function_id])
-	echo_map_ref()[echo_function_id](str);
+        echo_map_ref()[echo_function_id](str);
     }
     echo_post_exec()(echo_function_id, str);
   }
@@ -207,7 +208,7 @@ namespace mkt
     using namespace std;
     using namespace mkt;
     add_command("echo", ::echo,
-		"Prints out all arguments after echo to standard out.");
+                "Prints out all arguments after echo to standard out.");
 
     //setup echo so it outputs to console
     echo_register(0, boost::bind(mkt::do_echo, &std::cout, _1));

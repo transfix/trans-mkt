@@ -7,7 +7,6 @@
 
 #include <boost/lexical_cast.hpp>
 #include <boost/current_function.hpp>
-#include <boost/foreach.hpp>
 
 #include <sstream>
 
@@ -123,9 +122,9 @@ namespace
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     std::vector<std::string> names = xch::get_asset_names();
     std::stringstream ss;
-    BOOST_FOREACH(std::string& name, names)
+    for(auto&& name : names)
       ss << "\"" << name << "\", " 
-	 << "\"" << xch::get_asset_id(name) << "\"" << std::endl;
+         << "\"" << xch::get_asset_id(name) << "\"" << std::endl;
     mkt::ret_val(ss.str());
   }
 
@@ -167,13 +166,13 @@ namespace
       {
         asset_id = boost::lexical_cast<xch::asset_id_t>(local_args[0]);
         xch::remove_asset(asset_id);
-	mkt::ret_val(asset_id);
+        mkt::ret_val(asset_id);
       }
     catch(boost::bad_lexical_cast&)
       {
         asset_name = local_args[0];
         xch::remove_asset(asset_name);
-	mkt::ret_val(asset_name);
+        mkt::ret_val(asset_name);
       }    
   }
 }
@@ -187,18 +186,18 @@ namespace xch
   {
     using namespace mkt;
     add_command("get_assets", ::get_assets, 
-		"Prints all assets name and id pairs.");
+                "Prints all assets name and id pairs.");
     add_command("get_asset_id", ::get_asset_id, 
-		"get_asset_id [<asset name>]\nPrints asset id associated with specified asset name");
+                "get_asset_id [<asset name>]\nPrints asset id associated with specified asset name");
     add_command("get_asset_name", ::get_asset_name, 
-		"get_asset_name [<asset id>]\nPrints asset name associated with specified asset id");
+                "get_asset_name [<asset id>]\nPrints asset name associated with specified asset id");
     add_command("has_asset", ::has_asset,
-		"has_asset [<asset name>|<asset id>]\n"
-		"Prints true or false whether a system has a specified asset");
+                "has_asset [<asset name>|<asset id>]\n"
+                "Prints true or false whether a system has a specified asset");
     add_command("remove_asset", ::remove_asset, 
-		"remove_asset [<asset name>|<asset id>]\nRemove specified asset");
+                "remove_asset [<asset name>|<asset id>]\nRemove specified asset");
     add_command("set_asset_id", ::set_asset_id, 
-		"set_asset_id [<asset name>] [<asset id>]\nBinds a name with an asset id");
+                "set_asset_id [<asset name>] [<asset id>]\nBinds a name with an asset id");
   }
 
   void final_assets()
@@ -259,11 +258,9 @@ namespace xch
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     shared_lock lock(asset_map_mutex_ref());
     std::vector<std::string> names;
-    BOOST_FOREACH(asset_map::value_type& cur, asset_map_ref())
-      {
-        if(!cur.first.empty())
-          names.push_back(cur.first);
-      }
+    for(auto&& cur : asset_map_ref())
+      if(!cur.first.empty())
+        names.push_back(cur.first);
     return names;
   }
 
@@ -272,12 +269,9 @@ namespace xch
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     shared_lock lock(asset_map_mutex_ref());
     std::vector<asset_id_t> ids;
-    BOOST_FOREACH(reverse_asset_map::value_type& cur, 
-                  reverse_asset_map_ref())
-      {
-        if(cur.first != -1)
-          ids.push_back(cur.first);
-      }
+    for(auto&& cur : reverse_asset_map_ref())
+      if(cur.first != -1)
+        ids.push_back(cur.first);
     return ids;
   }
 

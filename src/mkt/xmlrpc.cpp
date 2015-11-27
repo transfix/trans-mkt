@@ -13,7 +13,6 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/asio.hpp>
-#include <boost/foreach.hpp>
 
 #include <iostream>
 
@@ -34,7 +33,7 @@ namespace
            const mkt::mkt_str& h)
       : _varname(v), _host(h) {}
     void operator()(const mkt::mkt_str& in_var,
-		    const mkt::mkt_str& t_key)
+                    const mkt::mkt_str& t_key)
     {
       using namespace boost::algorithm;
       if(_varname != in_var) return;
@@ -94,14 +93,14 @@ namespace
     split(remote_servers, remote_servers_string, is_any_of(","), token_compress_on);
     
     //execute an echo with the specified string on each host listed
-    BOOST_FOREACH(string& remote_server, remote_servers)
+    for(auto&& remote_server : remote_servers)
       {
         trim(remote_server); //get rid of whitespace between ',' chars
         mkt::argument_vector remote_host_components;
         split(remote_host_components, remote_server,
               is_any_of(":"), token_compress_on);
         if(remote_host_components.empty()) continue;
-	//TODO: do something with port
+        //TODO: do something with port
         int port = mkt::default_port();
         std::string host = remote_host_components[0];
         if(remote_host_components.size()>=2)
@@ -126,14 +125,14 @@ namespace
     split(remote_servers, remote_servers_string, is_any_of(","), token_compress_on);
     
     //disconnect the syncer associated with each remote host that matches
-    BOOST_FOREACH(string& remote_server, remote_servers)
+    for(auto&& remote_server : remote_servers)
       {
         trim(remote_server); //get rid of whitespace between ',' chars
         mkt::argument_vector remote_host_components;
         split(remote_host_components, remote_server,
               is_any_of(":"), token_compress_on);
         if(remote_host_components.empty()) continue;
-	//TODO: do something with port
+        //TODO: do something with port
         int port = mkt::default_port();
         std::string host = remote_host_components[0];
         if(remote_host_components.size()>=2)
@@ -291,16 +290,16 @@ namespace mkt
       {
         mkt::exec(av);
         result[0] = mkt::get_var("_");
-	result[1] = string("success");
+        result[1] = string("success");
       }
     catch(mkt::exception& e)
       {
-	string res = boost::str(boost::format("Error: %1%")
-				% e.what_str());
+        string res = boost::str(boost::format("Error: %1%")
+                                % e.what_str());
         if(!e.what_str().empty()) 
           mkt::out().stream() << res << endl;
         result[0] = res;
-	result[1] = string("error");
+        result[1] = string("error");
       }
   }
 
@@ -334,13 +333,13 @@ namespace mkt
     const mkt::mkt_str remote_echo_varname("sys_remote_echo");
     if(mkt::has_var(remote_echo_varname))
       {
-	// TODO: thread key
+        // TODO: thread key
         mkt::mkt_str remote_echo_value = mkt::get_var(remote_echo_varname);
         mkt::argument_vector remote_servers;
         split(remote_servers, remote_echo_value, is_any_of(","), token_compress_on);
 
         //execute an echo with the specified string on each host listed
-        BOOST_FOREACH(std::string& remote_server, remote_servers)
+        for(auto&& remote_server : remote_servers)
           {
             trim(remote_server); //get rid of whitespace between ',' chars
             mkt::argument_vector remote_host_components;
@@ -371,16 +370,16 @@ namespace mkt
     using namespace mkt;
     
     add_command("local_ip", ::local_ip, 
-		"Prints the local ip address of the default interface.");
+                "Prints the local ip address of the default interface.");
     add_command("remote", ::remote, 
-		"remote <host> [port <port>] <command> -\n"
-		"Executes a command on the specified host.");
+                "remote <host> [port <port>] <command> -\n"
+                "Executes a command on the specified host.");
     add_command("server", ::server, 
-		"server <port>\nStart an xmlrpc server at the specified port.");
+                "server <port>\nStart an xmlrpc server at the specified port.");
     add_command("sync_var", ::sync_var, "sync_var <varname> <remote host comma separated list> -\n"
-		"Keeps variables syncronized across hosts.");
+                "Keeps variables syncronized across hosts.");
     add_command("unsync_var", ::unsync_var, "unsync_var <varname> <remote host comma separated list> -\n"
-		"Disconnects variable syncronization across hosts.");    
+                "Disconnects variable syncronization across hosts.");    
   }
 
   void final_xmlrpc()

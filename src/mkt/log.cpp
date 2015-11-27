@@ -51,13 +51,13 @@ namespace
 
     if(!_log_data)
       {
-	_log_data = new log_data;
-	std::atexit(_log_cleanup);
+        _log_data = new log_data;
+        std::atexit(_log_cleanup);
       }
 
     if(!_log_data)
       {
-	throw mkt::log_error("error allocating static data");
+        throw mkt::log_error("error allocating static data");
       }
 
     return _log_data;
@@ -130,16 +130,16 @@ namespace
     stringstream ss;
     log_entries_ptr le_p = get_logs(queue, begin, end);
     if(!le_p) throw log_error("Missing log entries!");
-    BOOST_FOREACH(log_entries::value_type cur, *le_p)
+    for(auto&& cur : *le_p)
       {
-	if(!cur.second) continue;
-	log_entry& le = *cur.second;
-	ss << str(format("{%1%}, {%2%}, {%3%}, {%4%}")
-		  % le.get<3>()                  // log queue
-		  % ptime_to_str(cur.first)      // datetime
-		  % mkt::thread_key(le.get<2>()) // thread of origination
-		  % le.get<4>())                 // serial number
-	   << endl;
+        if(!cur.second) continue;
+        log_entry& le = *cur.second;
+        ss << str(format("{%1%}, {%2%}, {%3%}, {%4%}")
+                  % le.get<3>()                  // log queue
+                  % ptime_to_str(cur.first)      // datetime
+                  % mkt::thread_key(le.get<2>()) // thread of origination
+                  % le.get<4>())                 // serial number
+           << endl;
       }
     ret_val(ss.str());
   }
@@ -187,15 +187,15 @@ namespace
     uint64 serial_no = string_cast<uint64>(local_args[0]);
     log_entry_ptr le_p = get_log(serial_no);
     ret_val(le_p ?
-	    mkt_str(str(format("%1%: {%2%}, "
-			       "%3%: {%4%}, "
-			       "%5%: {%6%}, "
-			       "%7%: {%8%}")
-			% "queue" % le_p->get<3>()
-			% "thread_key" % thread_key(le_p->get<2>())
-			% "serial" % le_p->get<4>()
-			% "msg" % le_p->get<0>())) :
-	    mkt_str());
+            mkt_str(str(format("%1%: {%2%}, "
+                               "%3%: {%4%}, "
+                               "%5%: {%6%}, "
+                               "%7%: {%8%}")
+                        % "queue" % le_p->get<3>()
+                        % "thread_key" % thread_key(le_p->get<2>())
+                        % "serial" % le_p->get<4>()
+                        % "msg" % le_p->get<0>())) :
+            mkt_str());
   }
 }
 
@@ -208,46 +208,46 @@ namespace mkt
   {
     using namespace boost;
     log("vars",str(format("%1%: {%2%}, {t_key: %3%}")
-		   % varname
-		   % get_var(varname)
-		   % t_key));
+                   % varname
+                   % get_var(varname)
+                   % t_key));
   }
 
   void command_slot(const mkt_str& queue,
-		    const argument_vector& cmd,
-		    const mkt_str& t_key)
+                    const argument_vector& cmd,
+                    const mkt_str& t_key)
   {
     using namespace boost;
     log(queue,str(format("%1%: {%2%}")
-		  % t_key
-		  % join(cmd)));
+                  % t_key
+                  % join(cmd)));
   }
 
   void thread_exception_slot(const mkt_str& t_key,
-			     const mkt_str& ex_s)
+                             const mkt_str& ex_s)
   {
     using namespace boost;
     log("threads",str(format("%1%: Exception: %2%")
-		      % t_key
-		      % ex_s));
+                      % t_key
+                      % ex_s));
   }
 
   void thread_init_slot(const mkt_str& caller_key,
-			const mkt_str& this_key)
+                        const mkt_str& this_key)
   {
     using namespace boost;
     log("threads",str(format("thread_initialized: %1% -> %2%")
-		      % caller_key
-		      % this_key));
+                      % caller_key
+                      % this_key));
   }
 
   void thread_final_slot(const mkt_str& caller_key,
-			 const mkt_str& this_key)
+                         const mkt_str& this_key)
   {
     using namespace boost;
     log("threads",str(format("thread_finalized: %1% -> %2%")
-		      % caller_key
-		      % this_key));
+                      % caller_key
+                      % this_key));
   }
 
   template<class Key_Type>
@@ -255,15 +255,15 @@ namespace mkt
   {
   public:
     map_change_log_slot(const mkt_str& queue_str = mkt_str("default"),
-			const mkt_str& slot_str = mkt_str()) : 
+                        const mkt_str& slot_str = mkt_str()) : 
       _queue_str(queue_str),
       _str(slot_str) {}
     void operator()(const Key_Type& changed_key)
     {
       using namespace boost;
       log(_queue_str, str(format("%1% %2%")
-			  % _str
-			  % changed_key));
+                          % _str
+                          % changed_key));
     }
     bool operator==(const map_change_log_slot& rhs) const
     {
@@ -277,14 +277,14 @@ namespace mkt
   typedef map_change_log_slot<mkt_str> mcls_str;
   typedef map_change_log_slot<int64> mcls_int64;
 
-#define MKT_MCLS_CONNECT(module, slot_name, key_type)			      \
+#define MKT_MCLS_CONNECT(module, slot_name, key_type)                         \
   slot_name().connect(map_change_log_slot<key_type>(#module, #slot_name))
-#define MKT_MCLS_DISCONNECT(module, slot_name, key_type)		      \
+#define MKT_MCLS_DISCONNECT(module, slot_name, key_type)                      \
   slot_name().disconnect(map_change_log_slot<key_type>(#module, #slot_name))
 
-#define MKT_MCLS_STR_CONNECT(module, slot_name) 	\
+#define MKT_MCLS_STR_CONNECT(module, slot_name)         \
   MKT_MCLS_CONNECT(module, slot_name, mkt_str)
-#define MKT_MCLS_STR_DISCONNECT(module, slot_name)	\
+#define MKT_MCLS_STR_DISCONNECT(module, slot_name)      \
   MKT_MCLS_DISCONNECT(module, slot_name, mkt_str)
 
   void init_log()
@@ -293,21 +293,21 @@ namespace mkt
     using namespace mkt;
     
     add_command("get_logs", get_logs_cmd, 
-		"get_logs [queue regex] [begin time] [end time]\n"
-		"Returns all logs between begin time and end time.\n"
-		"[queue regex] is a regular expression used to select which log "
-		"queue to read from.\n"
-		"If begin time isn't specified, the posix time epoch is assumed.\n"
-		"If end time isn't specified, 'now' is assumed.\n"
-		"Default is '.*'");
+                "get_logs [queue regex] [begin time] [end time]\n"
+                "Returns all logs between begin time and end time.\n"
+                "[queue regex] is a regular expression used to select which log "
+                "queue to read from.\n"
+                "If begin time isn't specified, the posix time epoch is assumed.\n"
+                "If end time isn't specified, 'now' is assumed.\n"
+                "Default is '.*'");
     add_command("get_log", get_log_cmd,
-		"get_log [serial_no]\n"
-		"Returns the log entry with the specified serial number.");
+                "get_log [serial_no]\n"
+                "Returns the log entry with the specified serial number.");
     add_command("log_queues", get_log_queues_cmd,
-		"Returns a list of log queues");
+                "Returns a list of log queues");
     add_command("log", log_cmd, 
-		"log <queue name> <message>\n"
-		"Posts a message to the specified message queue.");
+                "log <queue name> <message>\n"
+                "Posts a message to the specified message queue.");
 
     var_changed().connect(var_changed_slot);
     MKT_MCLS_STR_CONNECT(commands, command_added);
@@ -319,9 +319,9 @@ namespace mkt
     MKT_MCLS_STR_CONNECT(modules, module_post_final);
     MKT_MCLS_CONNECT(echo, echo_function_registered, int64);
     command_pre_exec().connect(boost::bind(command_slot,"command_pre_exec",
-					   _1, _2));
+                                           _1, _2));
     command_post_exec().connect(boost::bind(command_slot,"command_post_exec",
-					    _1, _2));
+                                            _1, _2));
     MKT_MCLS_STR_CONNECT(threads, threads_changed);
     thread_exception().connect(thread_exception_slot);
     thread_initialized().connect(thread_init_slot);
@@ -344,9 +344,9 @@ namespace mkt
     MKT_MCLS_STR_DISCONNECT(modules, module_post_final);
     MKT_MCLS_DISCONNECT(echo, echo_function_registered, int64);
     command_pre_exec().disconnect(boost::bind(command_slot,"command_pre_exec",
-					      _1, _2));
+                                              _1, _2));
     command_post_exec().disconnect(boost::bind(command_slot,"command_post_exec",
-					       _1, _2));
+                                               _1, _2));
     MKT_MCLS_STR_DISCONNECT(threads, threads_changed);
     thread_exception().disconnect(thread_exception_slot);
     thread_initialized().disconnect(thread_init_slot);
@@ -367,9 +367,9 @@ namespace mkt
 
       ptime cur_time = boost::posix_time::microsec_clock::universal_time();
       log_entry_ptr le_p(new log_entry(message, data,
-				       boost::this_thread::get_id(),
-				       queue,
-				       _next_serial()));
+                                       boost::this_thread::get_id(),
+                                       queue,
+                                       _next_serial()));
       le.insert(log_entries::value_type(cur_time, le_p));
       log_entry_serial_map_ref()[le_p->get<4>()] = le_p;
     }
@@ -378,8 +378,8 @@ namespace mkt
   }
 
   log_entries_ptr get_logs(const mkt_str& queue_regex,
-			   const ptime& begin, 
-			   const ptime& end)
+                           const ptime& begin, 
+                           const ptime& end)
   {
     thread_info ti(BOOST_CURRENT_FUNCTION);
 
@@ -387,18 +387,18 @@ namespace mkt
     ret.reset(new log_entries);
     argument_vector queues = get_log_queues();
 
-    BOOST_FOREACH(mkt_str& cur, queues)
+    for(auto&& cur : queues)
       {
-	if(!matches(cur, queue_regex)) continue;
-	else
-	  {
-	    unique_lock lock(log_mutex_ref());
-	    log_entry_queues& leq = log_entry_queues_ref();
-	    log_entries& le = *leq[cur];
-	    log_entries::iterator earliest = le.lower_bound(begin);
-	    log_entries::iterator latest = le.upper_bound(end);
-	    ret->insert(earliest, latest);
-	  }
+        if(!matches(cur, queue_regex)) continue;
+        else
+          {
+            unique_lock lock(log_mutex_ref());
+            log_entry_queues& leq = log_entry_queues_ref();
+            log_entries& le = *leq[cur];
+            log_entries::iterator earliest = le.lower_bound(begin);
+            log_entries::iterator latest = le.upper_bound(end);
+            ret->insert(earliest, latest);
+          }
       }
 
     return ret;
@@ -411,10 +411,8 @@ namespace mkt
     {
       unique_lock lock(log_mutex_ref());
       log_entry_queues& leq = log_entry_queues_ref();
-      BOOST_FOREACH(const log_entry_queues::value_type& cur, leq)
-	{
-	  queues.push_back(cur.first);
-	}
+      for(auto&& cur : leq)
+        queues.push_back(cur.first);
     }
     return queues;
   }
@@ -430,8 +428,8 @@ namespace mkt
     {
       shared_lock lock(log_mutex_ref());
       if(log_entry_serial_map_ref().find(serial_no) ==
-	 log_entry_serial_map_ref().end())
-	return out_val;
+         log_entry_serial_map_ref().end())
+        return out_val;
     }
 
     {

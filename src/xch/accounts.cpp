@@ -7,7 +7,6 @@
 
 #include <boost/lexical_cast.hpp>
 #include <boost/current_function.hpp>
-#include <boost/foreach.hpp>
 #include <boost/format.hpp>
 
 #include <cstdlib>
@@ -105,9 +104,9 @@ namespace
     double amount =
       string_cast<double>(local_args[3]);
     xch::exec_transaction(to_account_id,
-			  from_account_id,
-			  asset_id,
-			  amount);
+                          from_account_id,
+                          asset_id,
+                          amount);
   }
 
   void init_account(const mkt::argument_vector& args)
@@ -156,8 +155,8 @@ namespace xch
     using namespace mkt;
 
     add_command("init_account", ::init_account, 
-		"init_account [<account id>]\nInitializes a new account and initializes "
-		"balances of known assets to 0.0. If no account_id is specified, the system will generate one.");
+                "init_account [<account id>]\nInitializes a new account and initializes "
+                "balances of known assets to 0.0. If no account_id is specified, the system will generate one.");
   }
 
   void final_accounts()
@@ -178,19 +177,19 @@ namespace xch
       unique_lock lock(account_map_mutex_ref());
 
       if(from_account_id >= 0 &&
-	 account_map_ref().find(from_account_id) == account_map_ref().end())
-	throw accounts_error(str(format("invalid from_account_id %1%")
+         account_map_ref().find(from_account_id) == account_map_ref().end())
+        throw accounts_error(str(format("invalid from_account_id %1%")
                                  % to_account_id));
       if(account_map_ref().find(to_account_id) == account_map_ref().end())
-	throw accounts_error(str(format("invalid to_account_id %1%")
+        throw accounts_error(str(format("invalid to_account_id %1%")
                                  % to_account_id));
       if(from_account_id == to_account_id)
-	throw accounts_error("to_account_id == from_account_id");
+        throw accounts_error("to_account_id == from_account_id");
 
       //a from_account_id less than zero creates money from nothing
       double from_account_balance = 
-	from_account_id >= 0 ? 
-	account_map_ref()[from_account_id][asset_id] : amount;
+        from_account_id >= 0 ? 
+        account_map_ref()[from_account_id][asset_id] : amount;
       double to_account_balance = account_map_ref()[to_account_id][asset_id];
 
       from_account_balance -= amount;
@@ -198,12 +197,12 @@ namespace xch
 
       //do not support negative balances
       if(from_account_balance < 0.0)
-	throw accounts_error(str(format("not enough funds in account %1%") 
+        throw accounts_error(str(format("not enough funds in account %1%") 
                                  % from_account_id));
 
       //everything is ok, lets set the new balances now
       if(from_account_id >= 0)
-	account_map_ref()[from_account_id][asset_id] = from_account_balance;
+        account_map_ref()[from_account_id][asset_id] = from_account_balance;
       account_map_ref()[to_account_id][asset_id] = to_account_balance;
 
       ptime cur_time = boost::posix_time::microsec_clock::universal_time();
@@ -235,14 +234,14 @@ namespace xch
     {
       unique_lock lock(account_map_mutex_ref());
       ptime cur_time = boost::posix_time::microsec_clock::universal_time();
-      BOOST_FOREACH(asset_map::value_type& cur, assets)
-	{
-	  asset_id_t asset_id = cur.second;
-	  account_map_ref()[account_id][asset_id] = 0.0;
-	  transaction t(cur_time, account_id, -1, asset_id, 0.0);
-	  transaction_history_ref().insert(transaction_map::value_type(cur_time, t));
-	  transactions_ref()[t.id()] = t;
-	}
+      for(auto&& cur : assets)
+        {
+          asset_id_t asset_id = cur.second;
+          account_map_ref()[account_id][asset_id] = 0.0;
+          transaction t(cur_time, account_id, -1, asset_id, 0.0);
+          transaction_history_ref().insert(transaction_map::value_type(cur_time, t));
+          transactions_ref()[t.id()] = t;
+        }
     }
     
     account_changed(account_id);
@@ -255,7 +254,7 @@ namespace xch
     shared_lock lock(account_map_mutex_ref());
     if(account_map_ref().find(account_id) == account_map_ref().end())
       throw accounts_error(str(format("invalid account_id %1%")
-			      % account_id));
+                              % account_id));
     return account_map_ref()[account_id][asset_id];
   }
 
@@ -269,7 +268,7 @@ namespace xch
   {
     shared_lock lock(account_map_mutex_ref());
     std::vector<account_id_t> ids;
-    BOOST_FOREACH(const account_map::value_type& cur, account_map_ref())
+    for(auto&& cur : account_map_ref())
       ids.push_back(cur.first);
     return ids;
   }
@@ -281,7 +280,7 @@ namespace xch
     srand(time(0));
     do
       {
-	account_id = rand();
+        account_id = rand();
       }
     while(has_account(account_id));
     return account_id;
@@ -362,24 +361,24 @@ namespace xch
     transaction_map::iterator latest_iter =
       transaction_history_ref().upper_bound(_end);
     for(transaction_map::iterator i = earliest_iter;
-	i != latest_iter;
-	++i)
+        i != latest_iter;
+        ++i)
       {
-	transaction& t = i->second;
-	if(_to_account_id != -1 &&
-	   _to_account_id != t.to_account_id())
-	  continue;
-	if(_from_account_id != -1 &&
-	   _from_account_id != t.from_account_id())
-	  continue;
-	if(_asset_id != -1 &&
-	   _asset_id != t.asset_id())
-	  continue;
-	if(_min_amount > t.amount())
-	  continue;
-	if(_max_amount < t.amount())
-	  continue;
-	transactions.push_back(t);
+        transaction& t = i->second;
+        if(_to_account_id != -1 &&
+           _to_account_id != t.to_account_id())
+          continue;
+        if(_from_account_id != -1 &&
+           _from_account_id != t.from_account_id())
+          continue;
+        if(_asset_id != -1 &&
+           _asset_id != t.asset_id())
+          continue;
+        if(_min_amount > t.amount())
+          continue;
+        if(_max_amount < t.amount())
+          continue;
+        transactions.push_back(t);
       }
       
     return transactions;
