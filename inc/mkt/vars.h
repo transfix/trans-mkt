@@ -7,11 +7,10 @@
 #include <mkt/exceptions.h>
 #include <mkt/utils.h>
 
-#include <boost/tuple/tuple.hpp>
-#include <boost/tuple/tuple_comparison.hpp>
 #include <boost/format.hpp>
 
 #include <map>
+#include <tuple>
 
 namespace mkt
 {
@@ -20,7 +19,7 @@ namespace mkt
    */
   MKT_DEF_EXCEPTION(vars_error);
 
-  struct variable_value : boost::tuple
+  struct variable_value : std::tuple
   <
     any_ptr,  // value data
     mkt_str,  // value type identifier
@@ -32,15 +31,15 @@ namespace mkt
                           const mkt_str& t = mkt_str(),
                           const ptime& m = now(),
                           const ptime& a = now())
-      : boost::tuple<any_ptr, mkt_str, ptime, ptime>(p,t,m,a) {}
+      : std::tuple<any_ptr, mkt_str, ptime, ptime>(p,t,m,a) {}
     inline variable_value(const variable_value& vv)
-      : boost::tuple<any_ptr, mkt_str, ptime, ptime>(vv) {}
+      : std::tuple<any_ptr, mkt_str, ptime, ptime>(vv) {}
     
     template<class T>
     inline T data()
     {
       T val;
-      any_ptr& d_ptr = get<0>();
+      any_ptr& d_ptr = std::get<0>(*this);
       //default to empty string for now
       if(!d_ptr) data(mkt_str());
       try
@@ -57,7 +56,7 @@ namespace mkt
               val = boost::any_cast<T>(*d_ptr);
             }
 
-          ptime& access_time = get<3>();
+          ptime& access_time = std::get<3>(*this);
           access_time = now();
         }
       catch(boost::bad_any_cast&)
@@ -74,23 +73,23 @@ namespace mkt
     template<class T>
     inline void data(const T& in)
     {
-      any_ptr& d_ptr = get<0>();
+      any_ptr& d_ptr = std::get<0>(*this);
       if(!d_ptr) d_ptr.reset(new any());
       *d_ptr = in;
 
-      mkt_str& val_type = get<1>();
+      mkt_str& val_type = std::get<1>(*this);
       val_type = mkt_str(typeid(T).name());
 
-      ptime& mod_time = get<2>();
+      ptime& mod_time = std::get<2>(*this);
       mod_time = now();
 
-      ptime& access_time = get<3>();
+      ptime& access_time = std::get<3>(*this);
       access_time = now();
     }
 
-    const mkt_str& type() const { return get<1>(); }
-    const ptime& mod_time() const { return get<2>(); }
-    const ptime& access_time() const { return get<3>(); }
+    const mkt_str& type() const { return std::get<1>(*this); }
+    const ptime& mod_time() const { return std::get<2>(*this); }
+    const ptime& access_time() const { return std::get<3>(*this); }
   };
 
   typedef std::map<mkt_str, variable_value>         variable_map;

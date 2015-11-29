@@ -357,7 +357,7 @@ namespace mkt
   {
     mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
     shared_lock lock(cmds_lock());    
-    return cmds()[name].get<1>();
+    return std::get<1>(cmds()[name]);
   }
   
   bool has_command(const mkt_str& name)
@@ -391,7 +391,7 @@ namespace mkt
 
     // Finally call it.
     command_pre_exec()(local_args, thread_key());
-    cmd.get<0>()(local_args);
+    std::get<0>(cmd)(local_args);
     command_post_exec()(local_args, thread_key());
   }
 

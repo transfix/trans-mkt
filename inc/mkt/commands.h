@@ -8,7 +8,8 @@
 #include <mkt/threads.h>
 
 #include <boost/function.hpp>
-#include <boost/tuple/tuple.hpp>
+
+#include <tuple>
 
 namespace mkt
 {
@@ -17,7 +18,7 @@ namespace mkt
    */
   MKT_DEF_EXCEPTION(command_error);
   typedef boost::function<void (const argument_vector&)> command_func;
-  typedef boost::tuple<command_func, mkt_str>            command;
+  typedef std::tuple<command_func, mkt_str>              command;
   typedef std::map<mkt_str, command>                     command_map;
 
   void init_commands();

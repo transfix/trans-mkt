@@ -5,8 +5,9 @@
 #include <mkt/types.h>
 #include <mkt/threads.h>
 
-#include <boost/tuple/tuple.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
+
+#include <tuple>
 
 namespace mkt
 {
@@ -14,7 +15,7 @@ namespace mkt
    * Logging API
    */
 
-  typedef boost::tuple<
+  typedef std::tuple<
     mkt_str,            // message
     any,                // data
     thread_id,          // thread id where log originated

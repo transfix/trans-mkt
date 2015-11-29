@@ -135,10 +135,10 @@ namespace
         if(!cur.second) continue;
         log_entry& le = *cur.second;
         ss << str(format("{%1%}, {%2%}, {%3%}, {%4%}")
-                  % le.get<3>()                  // log queue
-                  % ptime_to_str(cur.first)      // datetime
-                  % mkt::thread_key(le.get<2>()) // thread of origination
-                  % le.get<4>())                 // serial number
+                  % std::get<3>(le)                  // log queue
+                  % ptime_to_str(cur.first)          // datetime
+                  % mkt::thread_key(std::get<2>(le)) // thread of origination
+                  % std::get<4>(le))                 // serial number
            << endl;
       }
     ret_val(ss.str());
@@ -191,10 +191,10 @@ namespace
                                "%3%: {%4%}, "
                                "%5%: {%6%}, "
                                "%7%: {%8%}")
-                        % "queue" % le_p->get<3>()
-                        % "thread_key" % thread_key(le_p->get<2>())
-                        % "serial" % le_p->get<4>()
-                        % "msg" % le_p->get<0>())) :
+                        % "queue" % std::get<3>(*le_p)
+                        % "thread_key" % thread_key(std::get<2>(*le_p))
+                        % "serial" % std::get<4>(*le_p)
+                        % "msg" % std::get<0>(*le_p))) :
             mkt_str());
   }
 }
@@ -371,7 +371,7 @@ namespace mkt
                                        queue,
                                        _next_serial()));
       le.insert(log_entries::value_type(cur_time, le_p));
-      log_entry_serial_map_ref()[le_p->get<4>()] = le_p;
+      log_entry_serial_map_ref()[std::get<4>(*le_p)] = le_p;
     }
 
     log_queue_changed()(queue);
