@@ -134,8 +134,6 @@ namespace
     return _vars_data;
   }
 
-  using namespace boost::tuples;
-
   mkt::variable_map& var_map_ref(const mkt::mkt_str& key = mkt::thread_key())
   {
     return _get_vars_data()->_var_maps[key];
