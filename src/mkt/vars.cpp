@@ -453,5 +453,26 @@ namespace mkt
     return local_args;
   }
 
+  ptime get_var_mod_time(const mkt_str& varname,
+			 const mkt_str& t_key)
+  {
+    using namespace boost;
+    thread_info ti(BOOST_CURRENT_FUNCTION);
+    ptime mod_time;
+    {
+      unique_lock lock(var_map_mutex_ref());
+      variable_map& vm = var_map_ref(t_key);
+      if(vm.find(varname)==vm.end())
+	throw vars_error(str(format("%1: no such variable %2 (%3)")
+			     % BOOST_CURRENT_FUNCTION
+			     % varname
+			     % t_key));
+      variable_value v_val = vm[varname];
+      mod_time = v_val.mod_time();
+    }
+    
+    return mod_time;
+  }
+
   bool vars_at_exit() { return _vars_atexit; }
 }

@@ -389,10 +389,17 @@ namespace mkt
       cmd = cmds()[cmd_str];
     }
 
+    ptime pre_exec_time = now();
+
     // Finally call it.
     command_pre_exec()(local_args, thread_key());
     std::get<0>(cmd)(local_args);
     command_post_exec()(local_args, thread_key());
+
+    // If the return value was not modified in the last command, reset it.
+    ptime ret_val_mod_time = get_var_mod_time("_");
+    if(pre_exec_time > ret_val_mod_time)
+      ret_val("");
   }
 
   void ex(const mkt_str& cmd, bool escape)

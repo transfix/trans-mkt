@@ -194,6 +194,9 @@ namespace mkt
       set_var("_", val);
     }
 
+  ptime get_var_mod_time(const mkt_str& varname,
+			 const mkt_str& t_key = thread_key());
+
   //TODO: add functions to get variable type and access/mod time
 
   //Splits a string into an argument vector, taking into account
