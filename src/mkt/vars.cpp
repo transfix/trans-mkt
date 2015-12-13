@@ -172,14 +172,16 @@ namespace
 
     for(auto&& cur : from_map)
       {
-        mkt::variable_value& from_val = cur.second;
+	if(!cur.second) continue;
+        const mkt::variable_value& from_val = *cur.second;
         if(only_if_newer && to_map.find(cur.first) != to_map.end())
           {
-            mkt::variable_value& to_val = to_map[cur.first];
+	    if(!to_map[cur.first]) continue;
+            const mkt::variable_value& to_val = *to_map[cur.first];
             if(to_val.mod_time() > from_val.mod_time())
               continue;
           }
-        to_map[cur.first] = from_val;
+        to_map[cur.first] = cur.second;
       }
   }
 
@@ -318,8 +320,8 @@ namespace mkt
       variable_map& vm = var_map_ref(t_key);
       if(vm.find(varname)==vm.end()) creating = true;
       if(creating) var_check_name(varname);
-      variable_value v_val = vm[varname];
-      val = v_val.data();
+      if(!vm[varname]) vm[varname].reset(new variable_value);
+      val = vm[varname]->data();
     }
     
     if(creating) var_changed()(varname, t_key);
@@ -336,11 +338,13 @@ namespace mkt
     {
       unique_lock lock(var_map_mutex_ref());
       mkt_str local_varname(varname); trim(local_varname);
-      mkt_str local_val(val);
       variable_map& vm = var_map_ref(t_key);
       if(vm.find(local_varname) != vm.end() &&
-         vm[local_varname].data() == local_val) return; //nothing to do
-      vm[local_varname].data(local_val);
+	 vm[local_varname] &&
+         vm[local_varname]->data() == val) return; //nothing to do
+      variable_value_ptr& v_val_ptr = vm[local_varname];
+      if(!v_val_ptr) v_val_ptr.reset(new variable_value);
+      v_val_ptr->data(val);
     }
     var_changed()(varname, t_key);
   }
@@ -467,8 +471,9 @@ namespace mkt
 			     % BOOST_CURRENT_FUNCTION
 			     % varname
 			     % t_key));
-      variable_value v_val = vm[varname];
-      mod_time = v_val.mod_time();
+      variable_value_ptr& v_val_ptr = vm[varname];
+      if(!v_val_ptr) v_val_ptr.reset(new variable_value);
+      mod_time = v_val_ptr->mod_time();
     }
     
     return mod_time;

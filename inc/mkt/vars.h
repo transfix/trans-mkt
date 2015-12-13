@@ -92,7 +92,8 @@ namespace mkt
     const ptime& access_time() const { return std::get<3>(*this); }
   };
 
-  typedef std::map<mkt_str, variable_value>         variable_map;
+  typedef std::shared_ptr<variable_value>           variable_value_ptr;
+  typedef std::map<mkt_str, variable_value_ptr>     variable_map;
 
   // each thread has its own variable_map
   typedef std::map<mkt_str, variable_map>           variable_maps;

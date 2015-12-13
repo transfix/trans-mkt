@@ -6,7 +6,6 @@
 #include <mkt/exceptions.h>
 
 #include <boost/thread.hpp>
-#include <boost/foreach.hpp>
 
 namespace mkt
 {
