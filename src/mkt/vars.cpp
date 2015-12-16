@@ -10,7 +10,6 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/regex.hpp>
-#include <boost/array.hpp>
 #include <boost/program_options.hpp>
 
 #include <boost/program_options/parsers.hpp>
@@ -18,6 +17,8 @@
 
 #include <sstream>
 #include <algorithm>
+#include <array>
+#include <type_traits>
 
 //split_winmain is ifdef'ed out on Linux, so lets just add it here.
 namespace
@@ -107,14 +108,14 @@ namespace
     //TODO: lets change this when it matters! - 20150604
     mkt::mutex                  _var_map_mutex;
   };
-  vars_data                    *_vars_data = 0;
+  vars_data                    *_vars_data = nullptr;
   bool                          _vars_atexit = false;
 
   void _vars_cleanup()
   {
     _vars_atexit = true;
     delete _vars_data;
-    _vars_data = 0;
+    _vars_data = nullptr;
   }
 
   vars_data* _get_vars_data()
@@ -158,6 +159,13 @@ namespace
           vm.erase(var_name);
       }
 
+    // do a deep copy
+    for(auto&& cur : vm)
+      [&p = cur.second]() 
+	{ 
+	  p.reset(new std::decay<decltype(*p)>::type(*p)); 
+	}();
+
     return vm;
   }
 
@@ -167,6 +175,7 @@ namespace
                     bool no_locals = true,
                     bool only_if_newer = true)
   {
+    // TODO: use reference for from_map to avoid unnecessary copies.
     mkt::variable_map from_map = var_copy_map(from_key, no_locals);
     mkt::variable_map& to_map = var_map_ref(to_key);
 
@@ -178,7 +187,7 @@ namespace
           {
 	    if(!to_map[cur.first]) continue;
             const mkt::variable_value& to_val = *to_map[cur.first];
-            if(to_val.mod_time() > from_val.mod_time())
+            if(to_val.mod_time() >= from_val.mod_time())
               continue;
           }
         to_map[cur.first] = cur.second;
@@ -306,7 +315,7 @@ namespace mkt
     thread_finalized().disconnect(vars_copy_on_thread_final);
 
     delete _vars_data;
-    _vars_data = 0;
+    _vars_data = nullptr;
   }
 
   mkt_str get_var(const mkt_str& varname,
@@ -420,7 +429,7 @@ namespace mkt
     thread_info ti(BOOST_CURRENT_FUNCTION);
     mkt_str local_args(args);
 
-    boost::array<regex, 2> exprs = 
+    std::array<regex, 2> exprs = 
       { 
         regex("\\s*(\\$(\\w+))\\s*"), 
         regex("\\$\\{(\\w+)\\}") 

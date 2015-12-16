@@ -29,15 +29,6 @@ if(APPLE)
   add_definitions(-D_GLIBCXX_FULLY_DYNAMIC_STRING)
 endif(APPLE)
 
-# experimental
-option(USING_STANDARD_INSTALL_LOCATION "If on, it will not put everything under $prefix/trans-mkt" ON)
-mark_as_advanced(USING_STANDARD_INSTALL_LOCATION)
-if(USING_STANDARD_INSTALL_LOCATION)
-  set(ADDED_PREFIX ".")
-else(USING_STANDARD_INSTALL_LOCATION)
-  set(ADDED_PREFIX "trans-mkt")
-endif(USING_STANDARD_INSTALL_LOCATION)
-
 # newer versions of msvc enable c++11 by default. GCC & Clang need it specified.
 if(NOT MSVC)
   set(CPP11_ARG "-std=c++11")

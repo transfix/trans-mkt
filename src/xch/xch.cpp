@@ -2,7 +2,7 @@
 
 /*
   This is the module entry point. The module command 'import <modulename>'
-  will look for dynamic libraries in paths listed in the sys.ld path list.
+  will look for dynamic libraries in paths listed in the sys_ld path list.
   On linux/unix, module names will be in filenames like lib<modulename>.so.
   On windows they'll be <modulename>.dll. 
 */

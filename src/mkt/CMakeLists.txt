@@ -64,10 +64,10 @@ endif(MKT_USING_XMLRPC)
 
 option(MKT_USING_MODULES "If this is enabled, mkt will use modules" ON)
 mark_as_advanced(MKT_USING_MODULES)
-if(NOT UNIX)
-  message(SEND_ERROR "modules not supported on your platform yet... :/")
-endif(NOT UNIX)
 if(MKT_USING_MODULES)
+  if(NOT UNIX)
+    message(SEND_ERROR "modules not supported on your platform yet... :/")
+  endif(NOT UNIX)
   set(MKT_LINK_LIBS ${MKT_LINK_LIBS} dl)
   set(INCLUDE_FILES
     ${INCLUDE_FILES}
@@ -82,9 +82,6 @@ if(MKT_INTERACTIVE)
   if(WIN32)
     set(MKT_LINK_LIBS ${MKT_LINK_LIBS} editline)
   else(WIN32)
-    #message("Interactive mode not supported outside of Windows yet.")
-    #set(MKT_INTERACTIVE OFF)
-    
     #use external libedit if available
     find_package(libedit)
     if(LIBEDIT_FOUND)
@@ -105,7 +102,7 @@ target_link_libraries(mkt ${MKT_LINK_LIBS})
 add_executable(trans-mkt trans-mkt.cpp)
 target_link_libraries(trans-mkt mkt)
 
-configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/../../inc/mkt/config.h.cmake ${CMAKE_BINARY_DIR}/inc/mkt/config.h )
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../../inc/mkt/config.h.cmake ${CMAKE_BINARY_DIR}/inc/mkt/config.h)
 
 if(WIN32)
   file(TO_NATIVE_PATH ${Boost_LIBRARY_DIRS} BOOST_LOCATION)
