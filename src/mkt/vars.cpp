@@ -203,6 +203,18 @@ namespace
   {
     mkt::check_identifier<mkt::vars_error>(varname);
   }
+
+  // guarantee an existing ptr
+  inline mkt::variable_value_ptr var_ptr(const mkt::mkt_str& varname,
+					 const mkt::mkt_str& t_key = mkt::thread_key())
+  {
+    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    mkt::unique_lock lock(var_map_mutex_ref());
+    mkt::variable_map& vm = var_map_ref(t_key);
+    mkt::variable_value_ptr& v_ptr = vm[varname];
+    if(!v_ptr) v_ptr.reset(new variable_value);
+    return v_ptr;
+  }
 }
 
 //Variable related commands
@@ -322,17 +334,9 @@ namespace mkt
                   const mkt_str& t_key)
   {
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    bool creating = false;
-    mkt_str val;
-    {
-      unique_lock lock(var_map_mutex_ref());
-      variable_map& vm = var_map_ref(t_key);
-      if(vm.find(varname)==vm.end()) creating = true;
-      if(creating) var_check_name(varname);
-      if(!vm[varname]) vm[varname].reset(new variable_value);
-      val = vm[varname]->data();
-    }
-    
+    bool creating = !has_var(varname);
+    if(creating) var_check_name(varname);
+    mkt_str val = var_ptr(varname, t_key)->data();
     if(creating) var_changed()(varname, t_key);
     return val;
   }
@@ -342,19 +346,11 @@ namespace mkt
   {
     using namespace boost::algorithm;
     thread_info ti(BOOST_CURRENT_FUNCTION);
-
+    mkt_str local_varname(varname); trim(local_varname);
     var_check_name(varname);
-    {
-      unique_lock lock(var_map_mutex_ref());
-      mkt_str local_varname(varname); trim(local_varname);
-      variable_map& vm = var_map_ref(t_key);
-      if(vm.find(local_varname) != vm.end() &&
-	 vm[local_varname] &&
-         vm[local_varname]->data() == val) return; //nothing to do
-      variable_value_ptr& v_val_ptr = vm[local_varname];
-      if(!v_val_ptr) v_val_ptr.reset(new variable_value);
-      v_val_ptr->data(val);
-    }
+    variable_value_ptr v_p = var_ptr(varname);
+    if(v_p->data() == val) return; // nothing to do
+    v_p->data(val);
     var_changed()(varname, t_key);
   }
 
@@ -404,20 +400,20 @@ namespace mkt
                  bool no_locals,
                  bool only_if_newer)
   {
-    unique_lock lock(var_map_mutex_ref());
     thread_info ti(BOOST_CURRENT_FUNCTION);
+    unique_lock lock(var_map_mutex_ref());
     var_copy_map(to_t_key, from_t_key, no_locals, only_if_newer);
   }
 
   argument_vector split(const mkt_str& args)
   {
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    thread_info ti(BOOST_CURRENT_FUNCTION);
     return ::split_winmain(args);
   }
 
   mkt_str join(const argument_vector& args)
   {
-    mkt::thread_info ti(BOOST_CURRENT_FUNCTION);
+    thread_info ti(BOOST_CURRENT_FUNCTION);
     return boost::join(args," ");
   }
 
@@ -471,21 +467,12 @@ namespace mkt
   {
     using namespace boost;
     thread_info ti(BOOST_CURRENT_FUNCTION);
-    ptime mod_time;
-    {
-      unique_lock lock(var_map_mutex_ref());
-      variable_map& vm = var_map_ref(t_key);
-      if(vm.find(varname)==vm.end())
-	throw vars_error(str(format("%1: no such variable %2 (%3)")
-			     % BOOST_CURRENT_FUNCTION
-			     % varname
-			     % t_key));
-      variable_value_ptr& v_val_ptr = vm[varname];
-      if(!v_val_ptr) v_val_ptr.reset(new variable_value);
-      mod_time = v_val_ptr->mod_time();
-    }
-    
-    return mod_time;
+    if(!has_var(varname))
+      throw vars_error(str(format("%1: no such variable %2 (%3)") 
+			   % BOOST_CURRENT_FUNCTION 
+			   % varname 
+			   % t_key));    
+    return var_ptr(varname)->mod_time();
   }
 
   bool vars_at_exit() { return _vars_atexit; }

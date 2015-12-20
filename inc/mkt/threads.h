@@ -119,7 +119,6 @@ namespace mkt
         try
           {
             thread_feedback tf(BOOST_CURRENT_FUNCTION);
-            //TODO: copy vars from calling thread's var map to this one.
             _t();
           }
         catch(mkt::exception& e)

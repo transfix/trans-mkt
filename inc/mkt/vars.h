@@ -19,21 +19,23 @@ namespace mkt
    */
   MKT_DEF_EXCEPTION(vars_error);
 
+  using mtx_ptr = std::shared_ptr<mkt::mutex>;
   struct variable_value : std::tuple
   <
     any_ptr,  // value data
     mkt_str,  // value type identifier
     ptime,    // modification time
-    ptime     // access time
+    ptime,    // access time
+    mtx_ptr
   >
   {
     inline variable_value(const any_ptr& p = any_ptr(), 
                           const mkt_str& t = mkt_str(),
                           const ptime& m = now(),
-                          const ptime& a = now())
-      : std::tuple<any_ptr, mkt_str, ptime, ptime>(p,t,m,a) {}
-    inline variable_value(const variable_value& vv)
-      : std::tuple<any_ptr, mkt_str, ptime, ptime>(vv) {}
+                          const ptime& a = now()) : 
+      std::tuple<any_ptr, mkt_str, ptime, ptime, mtx_ptr>(p,t,m,a) {}
+    inline variable_value(const variable_value& vv) : 
+      std::tuple<any_ptr, mkt_str, ptime, ptime, mtx_ptr>(vv) {}
     
     template<class T>
     inline T data()
@@ -90,6 +92,13 @@ namespace mkt
     const mkt_str& type() const { return std::get<1>(*this); }
     const ptime& mod_time() const { return std::get<2>(*this); }
     const ptime& access_time() const { return std::get<3>(*this); }
+
+    // TODO: make this work... we need a mutex for each variable_value object now
+    inline mkt::mutex& get_mutex() 
+    { 
+      if(!_mutex_ptr) _mutex_ptr.reset(new mkt::mutex);
+      return *_mutex_ptr;
+    }
   };
 
   typedef std::shared_ptr<variable_value>           variable_value_ptr;
@@ -199,6 +208,7 @@ namespace mkt
 			 const mkt_str& t_key = thread_key());
 
   //TODO: add functions to get variable type and access/mod time
+  //TODO: add touch function
 
   //Splits a string into an argument vector, taking into account
   //quote characters for argument values with spaces.
